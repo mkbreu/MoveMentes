@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Ranking {{ rotulo_periodo or 'Anual' }} - MoveMentes{% endblock %}
+
+{% block extra_head %}
+{% if token_valid and include_sponsor and sponsor_logo_url %}
+<meta property="og:title" content="Ranking {{ rotulo_periodo or 'Anual' }} - {{ cidade }}">
+<meta property="og:description" content="Patrocinador do mês: {{ sponsor_name or 'A definir' }}">
+<meta property="og:type" content="website">
+<meta property="og:image" content="{{ sponsor_logo_url }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Ranking {{ rotulo_periodo or 'Anual' }} - {{ cidade }}">
+<meta name="twitter:description" content="Patrocinador do mês: {{ sponsor_name or 'A definir' }}">
+<meta name="twitter:image" content="{{ sponsor_logo_url }}">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="display-6 text-center mb-3">
+        <i class="fas fa-trophy text-success"></i> Ranking {{ rotulo_periodo or 'Anual' }}
+    </h1>
+
+    {% if not token_valid %}
+    <div class="alert alert-danger text-center">
+        {{ error_message or 'Link inválido.' }}
+    </div>
+    {% else %}
+    {# Agradecimento + logo do patrocinador principal #}
+    {% include 'partials/public_top.html' %}
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-8">
+                    <p class="mb-1"><strong>Cidade:</strong> {{ cidade }}</p>
+                    <p class="mb-1"><strong>Período:</strong> {{ nome_bloco or selected_year }}</p>
+                    <p class="mb-0"><strong>Patrocinador:</strong> {{ sponsor_name or 'A definir' }}</p>
+                </div>
+                <div class="col-md-4">
+                    <form method="get" action="{{ url_for('ranking.public_yearly_links', token=token) }}">
+                        <input type="hidden" name="include_sponsor" value="{{ '1' if include_sponsor else '0' }}">
+                        <input type="hidden" name="periodo" value="{{ periodo or 'ano' }}">
+                        {% if bloco_options %}
+                        <label for="blocoSelector" class="form-label mb-1">{{ 'Trimestre' if periodo == 'trimestre' else 'Semestre' }}</label>
+                        <select id="blocoSelector" name="bloco" class="form-select" onchange="this.form.submit()">
+                            {% for opt in bloco_options %}
+                            <option value="{{ opt.value }}" {% if opt.selected %}selected{% endif %}>
+                                {{ opt.label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% else %}
+                        <label for="yearSelector" class="form-label mb-1">Ano</label>
+                        <select id="yearSelector" name="year" class="form-select" onchange="this.form.submit()">
+                            {% for opt in month_options %}
+                            <option value="{{ opt.value }}" {% if opt.selected %}selected{% endif %}>
+                                {{ opt.label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% endif %}
+                    </form>
+                </div>
+            </div>
+
+            {# Mensal / Trimestral / Semestral / Anual (P-137-c, 25/09/2026) #}
+            {% include 'ranking/_abas_publicas.html' %}
+        </div>
+    </div>
+
+    <div class="row g-4">
+        {% for sec in sections %}
+        <div class="col-lg-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>{{ sec.titulo }}</strong>
+                    <span class="badge bg-success">{{ "%.1f"|format(sec.total_km or 0) }} km</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if sec.atletas %}
+                    <div class="p-3 pb-0"><label class="visually-hidden" for="buscarAnual{{ loop.index }}">Buscar atleta</label><input class="form-control busca-atleta" id="buscarAnual{{ loop.index }}" type="search" placeholder="Buscar atleta pelo nome" autocomplete="off"></div>
+                    <div class="list-group list-group-flush">
+                        {% for atleta in sec.atletas %}
+                        <a class="list-group-item list-group-item-action athlete-row" data-athlete-nome="{{ atleta.nome }}"
+                           href="{{ url_for('athlete.dashboard', strava_id=atleta.strava_id, name_key=atleta.name_key, periodo=periodo or 'ano') }}">
+                            <div class="d-flex justify-content-between align-items-center gap-3">
+                                <span>
+                                    <strong>#{{ atleta.rank }}</strong>
+                                    {{ atleta.nome }}
+                                </span>
+                                <span class="badge bg-primary rounded-pill">
+                                    {{ "%.1f"|format(atleta.km or 0) }} km
+                                </span>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted p-3 mb-0">Nenhum atleta nesta modalidade neste período.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {# Logos dos adicionais + disclaimer + QR + rodapé #}
+    {% include 'partials/public_bottom.html' %}
+    {% endif %}
+</div>
+<script>
+  document.querySelectorAll('.busca-atleta').forEach(campo => campo.addEventListener('input', () => {
+    const termo = campo.value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const card = campo.closest('.card');
+    card.querySelectorAll('.athlete-row').forEach(linha => {
+      const nome = (linha.dataset.athleteNome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      linha.classList.toggle('d-none', !!termo && !nome.includes(termo));
+    });
+  }));
+</script>
+{% endblock %}

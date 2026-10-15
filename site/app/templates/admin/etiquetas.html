@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}Etiquetas das medalhas — {{ meses[mes] }}/{{ ano }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row"><div class="col-lg-10 mx-auto">
+
+    <h4 class="mb-1"><i class="fas fa-tags me-2"></i>Etiquetas das medalhas — {{ cidade }}</h4>
+    <p class="text-muted small">
+      Folha <strong>Carta</strong> — o modelo escolhido abaixo manda na grade.
+      A lista vem dos <strong>medalhistas congelados</strong> do mês — a mesma que o sistema usa
+      para cobrar a retirada da medalha.
+      <a href="{{ url_for('admin.medalhistas', ano=ano, mes=mes) }}">
+        Abrir o painel de medalhistas deste mês</a> para avisar quem falta ou
+      marcar quem já retirou. <strong>Atualizar a lista numa tela atualiza na
+      outra</strong> — é a mesma lista.
+    </p>
+
+    <form method="GET" class="row g-2 align-items-end mb-3">
+      <div class="col-auto">
+        <label class="form-label small mb-1">Mês</label>
+        <select name="mes" class="form-select form-select-sm">
+          {% for m in range(1, 13) %}
+          <option value="{{ m }}" {% if m == mes %}selected{% endif %}>{{ meses[m] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Ano</label>
+        <select name="ano" class="form-select form-select-sm">
+          {% for a in anos %}<option value="{{ a }}" {% if a == ano %}selected{% endif %}>{{ a }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Modelo da etiqueta</label>
+        <select name="modelo" class="form-select form-select-sm">
+          {% for codigo, m in modelos.items() %}
+          <option value="{{ codigo }}" {% if codigo == modelo.codigo %}selected{% endif %}>{{ m.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto"><button class="btn btn-sm btn-outline-primary">Ver período</button></div>
+    </form>
+
+    {# O modelo muda a grade E o papel. Mostrar a conta na tela é o que permite
+       conferir antes de gastar uma cartela: se a margem não bater com a régua,
+       é porque a marca não segue o mesmo gabarito da Pimaco. #}
+    <p class="small text-muted">
+      <strong>{{ modelo.nome }}</strong> — papel <strong>Carta</strong>
+      ({{ modelo.papel_largura }} × {{ modelo.papel_altura }} mm),
+      <strong>{{ modelo.colunas }} colunas × {{ modelo.linhas }} linhas
+      = {{ modelo.por_folha }} etiquetas</strong>.
+      <br>
+      Parâmetros oficiais da Pimaco: margem superior {{ modelo.margem_topo }} mm,
+      margem esquerda {{ modelo.margem_esquerda }} mm, passo entre colunas
+      {{ modelo.passo_horizontal }} mm (ou seja, {{ modelo.vao_coluna }} mm de vão
+      entre uma coluna e outra) e nenhum vão entre as linhas.
+      <br>
+      <strong>Antes de gastar cartela:</strong> imprima a primeira folha numa
+      sulfite comum e ponha sobre a etiqueta contra a luz. Se bater, pode
+      imprimir. Marcas diferentes da Pimaco podem ter gabarito diferente.
+    </p>
+
+    {# A lista é uma foto congelada do mês. Se os km mudaram depois (correção,
+       importação por perfil), a foto não muda sozinha — este botão a refaz. #}
+    <form method="POST" class="mb-3"
+          onsubmit="return confirm('Refazer a lista de medalhistas com os km de agora? Quem já teve etiqueta impressa continua marcado.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="acao" value="atualizar">
+      <input type="hidden" name="ano" value="{{ ano }}">
+      <input type="hidden" name="mes" value="{{ mes }}">
+      <button class="btn btn-sm btn-outline-warning" type="submit">
+        <i class="fas fa-rotate me-1"></i>Atualizar a lista com os km de agora
+      </button>
+      <span class="text-muted small ms-2">
+        Use depois de corrigir km ou importar atividades — a lista fica congelada
+        desde a primeira vez que este mês foi aberto.
+      </span>
+    </form>
+
+    {% if not itens %}
+    <div class="alert alert-info">
+      Nenhum medalhista em {{ meses[mes] }}/{{ ano }}. Se o mês já passou e você espera
+      medalhistas, feche o mês em <a href="{{ url_for('admin.fechamento') }}">Fechamento</a>.
+    </div>
+    {% else %}
+
+    <form method="POST" action="{{ url_for('admin.etiquetas_folha') }}" target="_blank">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="ano" value="{{ ano }}">
+      <input type="hidden" name="mes" value="{{ mes }}">
+      {# Sem isto a folha voltaria ao modelo padrao e sairia com a grade errada
+         — o mesmo tipo de erro que fazia o nome cair fora do adesivo. #}
+      <input type="hidden" name="modelo" value="{{ modelo.codigo }}">
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+              <label class="form-label small fw-bold">Pular quantas etiquetas no começo?</label>
+              <input type="number" name="pular" class="form-control form-control-sm"
+                     value="0" min="0" max="{{ por_folha - 1 }}">
+              <div class="form-text">
+                Para aproveitar a folha que voltou da gaveta pela metade.
+                Conte da esquerda para a direita, linha a linha.
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="marcar" value="sim" id="marcar" checked>
+                <label class="form-check-label small" for="marcar">
+                  Marcar como impressas (não repetem na próxima folha)
+                </label>
+              </div>
+            </div>
+            <div class="col-md-4 text-md-end">
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="marcar(true)">Todos</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="marcar(false)">Nenhum</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="marcarPendentes()">Só os que faltam</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead><tr><th></th><th>Atleta</th><th>Modalidade</th><th>km</th><th>Etiqueta</th></tr></thead>
+          <tbody>
+            {% for i in itens %}
+            <tr>
+              <td><input class="form-check-input inclusao" type="checkbox" name="incluir"
+                         value="{{ i.chave }}" data-impresso="{{ 1 if i.impresso else 0 }}"
+                         {% if not i.impresso %}checked{% endif %}></td>
+              <td>{{ i.nome }}</td>
+              <td class="small">{{ i.modalidades|join(' + ') }}</td>
+              <td>{{ '%.1f'|format(i.km) }}</td>
+              <td>
+                {% if i.impresso %}
+                <span class="badge bg-secondary">já impressa</span>
+                {% else %}
+                <span class="badge bg-success">pendente</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-print me-1"></i>Gerar folha para imprimir
+      </button>
+      {# 20/09/2026 (P-140): o PDF e' o caminho seguro. Imprimindo o HTML, o
+         dialogo do navegador pode encolher a folha, trocar o papel para A4 ou
+         pôr margem propria — e qualquer um dos tres empurra o nome para fora
+         do adesivo, que foi o que aconteceu com as etiquetas de agosto. #}
+      <button type="submit" class="btn btn-success ms-2"
+              formaction="{{ url_for('admin.etiquetas_pdf') }}" formtarget="_self">
+        <i class="fas fa-file-pdf me-1"></i>Baixar PDF (medidas travadas)
+      </button>
+      <div class="text-muted small mt-2">
+        A folha em PDF já vem no tamanho do papel <strong>Carta</strong>, com
+        cada etiqueta na posição exata da Pimaco. Na hora de imprimir, escolha
+        <strong>Tamanho real (100%)</strong> — nunca "ajustar à página".
+        No pé da folha vai uma <strong>régua de 100 mm</strong>: meça com uma
+        régua de verdade. Se der outro número, a impressora está com escala, e
+        é isso que joga o nome para fora do adesivo.
+      </div>
+    </form>
+
+    {% set impressas = itens | selectattr('impresso') | list %}
+    {% if impressas %}
+    <h6 class="mt-4 text-muted">Reimprimir alguém</h6>
+    <div class="d-flex flex-wrap gap-2">
+      {% for i in impressas %}
+      <form method="POST" class="d-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="acao" value="desmarcar">
+        <input type="hidden" name="ano" value="{{ ano }}">
+        <input type="hidden" name="mes" value="{{ mes }}">
+        <input type="hidden" name="chave" value="{{ i.chave }}">
+        <button class="btn btn-sm btn-outline-secondary">
+          <i class="fas fa-rotate-left me-1"></i>{{ i.nome }}
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% endif %}
+  </div></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function marcar(valor) {
+  document.querySelectorAll('.inclusao').forEach(function (c) { c.checked = valor; });
+}
+function marcarPendentes() {
+  document.querySelectorAll('.inclusao').forEach(function (c) {
+    c.checked = c.dataset.impresso !== '1';
+  });
+}
+</script>
+{% endblock %}

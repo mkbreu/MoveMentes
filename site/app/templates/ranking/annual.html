@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Ranking Anual - MoveMentes{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3"><h1 class="h2 mb-0">Ranking Anual {{ selected_year }}</h1><button id="copiarAnual" class="btn btn-success">Copiar para WhatsApp</button></div>
+  <p class="text-muted">Patrocinadores: {{ sponsor_name }}</p>
+  <div id="textoAnual" class="border rounded p-3 bg-light mb-4" style="white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;">{{ ranking_text }}</div>
+  <div class="row g-4">
+  {% for chave, titulo in [('corrida_caminhada', 'Corrida/Caminhada'), ('ciclismo', 'Ciclismo')] %}
+    {% set sec = yearly_data[chave] %}
+    <div class="col-lg-6"><div class="card h-100"><div class="card-header"><strong>{{ titulo }}</strong> — {{ "%.1f"|format(sec.total_km or 0) }} km</div><div class="p-3 pb-0"><input class="form-control busca-atleta" type="search" placeholder="Buscar atleta pelo nome" autocomplete="off"></div><div class="list-group list-group-flush">{% for atleta in sec.atletas %}<a class="list-group-item list-group-item-action athlete-row" data-athlete-nome="{{ atleta.nome }}" href="{{ url_for('athlete.dashboard', strava_id=atleta.strava_id, name_key=atleta.name_key) }}">#{{ atleta.rank }} {{ atleta.nome }} <span class="float-end badge bg-primary">{{ "%.1f"|format(atleta.km) }} km</span></a>{% else %}<div class="list-group-item text-muted">Sem atividades no ano.</div>{% endfor %}</div></div></div>
+  {% endfor %}
+  </div>
+</div>
+<script>
+document.getElementById('copiarAnual').addEventListener('click', async () => { await navigator.clipboard.writeText({{ ranking_text|tojson }}); });
+document.querySelectorAll('.busca-atleta').forEach(campo => campo.addEventListener('input', () => {
+  const termo = campo.value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  campo.closest('.card').querySelectorAll('.athlete-row').forEach(linha => {
+    const nome = (linha.dataset.athleteNome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    linha.classList.toggle('d-none', !!termo && !nome.includes(termo));
+  });
+}));
+</script>
+{% endblock %}

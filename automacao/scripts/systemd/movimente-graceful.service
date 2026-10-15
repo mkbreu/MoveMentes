@@ -1,0 +1,29 @@
+[Unit]
+Description=Movimente-se — parada limpa dos containers (protege a sessao do WhatsApp)
+Documentation=https://github.com/devlikeapro/waha
+After=docker.service
+Requires=docker.service
+# Precisa parar ANTES do docker, senao os containers morrem junto com ele.
+Before=shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=USUARIO
+WorkingDirectory=/home/USUARIO/movimente-automacao
+
+# Na subida: garante a stack de pe.
+ExecStart=/usr/bin/docker compose up -d
+
+# Na descida: para os containers COM SIGTERM e tempo de sobra para o Chromium
+# fechar sozinho. Isto e o que impede o whatsapp-web.js de interpretar a queda
+# como LOGOUT e apagar a sessao gravada no PostgreSQL — o que obrigava a ler o
+# QR Code de novo a cada desligamento.
+ExecStop=/usr/bin/docker compose stop --timeout 45
+
+TimeoutStartSec=300
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

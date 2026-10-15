@@ -1,0 +1,688 @@
+{% extends "base.html" %}
+
+{% block title %}Ranking - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    {% include 'ranking/_abas_periodo.html' %}
+    <h1 class="display-5 text-center"><i class="fas fa-trophy text-primary"></i> Ranking Mensal</h1>
+    <p class="lead text-center">Confira os resultados das atividades do mês.</p>
+
+    <!-- Seletor + botões de cópia: imediatamente acima da caixa do ranking -->
+    <div class="row mb-3 justify-content-center align-items-center">
+        <div class="col-md-5 mb-2">
+            <div class="input-group">
+                <label class="input-group-text" for="monthSelector">Mês/Ano:</label>
+                <select class="form-select" id="monthSelector" onchange="loadRanking();">
+                    {% for month_option in available_months %}
+                        <option value="{{ month_option.value }}" {% if month_option.selected %}selected{% endif %}>
+                            {{ month_option.label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="col-md-7 text-end mb-2">
+            <button id="copyRankingButton" class="btn btn-success" type="button">
+                <i class="fas fa-copy"></i> Copiar para WhatsApp
+            </button>
+            <a href="{{ url_for('ranking.download_ranking', year=selected_year, month=selected_month) }}" class="btn btn-info ms-2">
+                <i class="fas fa-download"></i> Baixar Ranking
+            </a>
+            <a href="{{ url_for('ranking.annual', year=selected_year) }}" class="btn btn-outline-primary ms-2">Ranking anual</a>
+            <button class="btn btn-secondary ms-2" onclick="window.print()">
+                <i class="fas fa-print"></i> Imprimir
+            </button>
+        </div>
+    </div>
+
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" id="includeSponsorImageOption">
+        <label class="form-check-label" for="includeSponsorImageOption">
+            Incluir imagem do patrocinador no compartilhamento
+        </label>
+    </div>
+
+    <style>
+        .km-link {
+            font-weight: 700;
+            color: #0d6efd;
+            text-decoration: none;
+            border-bottom: 2px solid #0d6efd44;
+            transition: border-color .15s;
+        }
+        .km-link:hover { border-bottom-color: #0d6efd; }
+        .atleta-nome { font-weight: 600; }
+    </style>
+
+    <!-- Caixa do ranking -->
+    <div id="rankingContent" class="border rounded p-4 bg-light" style="white-space: pre-wrap; font-family: monospace; line-height: 1.7; max-width:100%; overflow-wrap:anywhere; word-break:break-word;">
+        {% if ranking_html %}
+            {{ ranking_html | safe }}
+        {% else %}
+            <p class="text-muted">Nenhum ranking disponível para {{ month_name }}/{{ selected_year }} ainda.</p>
+        {% endif %}
+    </div>
+
+    <!-- Mensagens de meta batida: logo abaixo da caixa do ranking -->
+    {% if goal_messages %}
+    <div class="alert alert-info d-flex align-items-start gap-2 mt-4 mb-3">
+        <i class="fas fa-bullhorn mt-1"></i>
+        <div>
+            As mensagens estão <strong>ordenadas pela data em que cada atleta bateu a meta</strong> (primeiro quem bateu antes).
+            Marque <strong>Enviado</strong> ao mandar no grupo para não repetir. Quando houver logo cadastrada, o link no fim da mensagem gera a miniatura do patrocinador.
+        </div>
+    </div>
+    <div class="card mb-4">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <strong>Mensagens de Meta Batida</strong>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="ocultarEnviados">
+                <label class="form-check-label small" for="ocultarEnviados">Ocultar já enviados</label>
+            </div>
+        </div>
+        <div class="card-body">
+            {% for item in goal_messages %}
+            <div class="mb-3 goal-message-item {% if item.enviado %}goal-enviado{% endif %}"
+                 data-chave="{{ item.chave_atleta }}" data-modalidade="{{ item.section_id }}">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
+                    <strong>
+                        {% if item.data_meta_texto %}<span class="badge bg-secondary me-1" title="Bateu a meta neste dia">{{ item.data_meta_texto }}</span>{% endif %}
+                        {{ item.nome }} - {{ item.modalidade }}
+                    </strong>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="form-check mb-0">
+                            <input class="form-check-input goal-enviado-check" type="checkbox"
+                                   id="env-{{ loop.index }}" {% if item.enviado %}checked{% endif %}>
+                            <label class="form-check-label small" for="env-{{ loop.index }}">Enviado</label>
+                        </div>
+                        <button type="button" class="btn btn-success btn-sm copy-goal-message">
+                            <i class="fas fa-copy"></i> Copiar mensagem
+                        </button>
+                    </div>
+                </div>
+                <textarea class="form-control goal-message-text" rows="3" readonly>{{ item.message }}</textarea>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Patrocinadores: pronto para o grupo (só leitura; gestão na página dedicada) -->
+    <div class="card mb-4">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <strong><i class="fas fa-handshake me-1"></i>Patrocinadores — pronto para o grupo</strong>
+            {% if can_manage_sponsor %}
+            <a href="{{ url_for('ranking.patrocinadores', year=selected_year, month=selected_month) }}"
+               class="btn btn-sm btn-dark">
+                <i class="fas fa-pen me-1"></i>Gerenciar patrocinadores
+            </a>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <p class="text-muted small">
+                Copie a legenda e a logo de cada patrocinador para enviar no grupo junto com o ranking.
+                A automação (WAHA) também consome estes dados.
+            </p>
+
+            {# Principal do mês #}
+            <div class="border rounded p-3 mb-3">
+                <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+                    <span class="badge bg-warning text-dark">Principal</span>
+                    <strong>{{ sponsor_name or 'A definir' }}</strong>
+                </div>
+                {% if sponsor_telefone %}
+                <div class="small mb-2"><i class="fas fa-phone me-1"></i>{{ sponsor_telefone|telefone }}</div>
+                {% endif %}
+                {% if sponsor_logo_url %}
+                <div style="overflow:hidden; text-align:center;">
+                    <img src="{{ sponsor_logo_url }}" alt="Logo do patrocinador" style="display:block; max-width:100%; max-height:50vh; width:auto; height:auto; object-fit:contain; margin:0 auto;">
+                </div>
+                {% else %}
+                <p class="text-muted small mb-2">Nenhuma logo principal cadastrada para este mês.</p>
+                {% endif %}
+
+                {# A legenda do principal faltava aqui: o admin nao conseguia
+                   conferir o texto que sai junto com a logo dele no grupo. #}
+                {% if sponsor_legenda %}
+                <label class="form-label small fw-bold mb-1">
+                    Legenda completa <span class="text-muted fw-normal">— é isto que vai ao grupo com a logo</span>
+                </label>
+                <div class="input-group input-group-sm mb-2">
+                    <textarea class="form-control legenda-completa" rows="4" readonly>{{ sponsor_legenda }}</textarea>
+                    <button type="button" class="btn btn-outline-primary copy-legenda">
+                        <i class="fas fa-copy me-1"></i>Copiar legenda
+                    </button>
+                </div>
+                {% endif %}
+
+                {% if sponsor_logo_url %}
+                <button type="button" class="btn btn-outline-secondary btn-sm copy-sponsor-logo" data-logo-url="{{ sponsor_logo_url }}">
+                    <i class="fas fa-image"></i> Copiar logo
+                </button>
+                {% endif %}
+            </div>
+
+            {# Adicionais #}
+            {% for item in sponsors_extra or [] %}
+            {% set sp = item.sp %}
+            <div class="border rounded p-3 mb-3">
+                <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                    <span class="badge bg-secondary">{{ 'Principal' if sp.categoria == 'principal' else 'Adicional' }}</span>
+                    <strong>{{ sp.patrocinador_nome }}</strong>
+                    {% if sp.telefone %}<span class="text-muted small"><i class="fas fa-phone me-1"></i>{{ sp.telefone|telefone }}</span>{% endif %}
+                </div>
+                {% if sp.bordao %}<div class="fst-italic small mb-1">"{{ sp.bordao }}"</div>{% endif %}
+                {% if sp.legenda %}<div class="text-muted small mb-2">{{ sp.legenda }}</div>{% endif %}
+                <div class="text-center mb-2" style="overflow:hidden;">
+                    <img src="{{ url_for('ranking.public_extra_sponsor_logo', sponsor_id=sp.id) }}" alt="Logo de {{ sp.patrocinador_nome }}" style="display:block; max-width:100%; max-height:40vh; width:auto; height:auto; object-fit:contain; margin:0 auto;">
+                </div>
+                <label class="form-label small fw-bold mb-1">Legenda completa (copiar)</label>
+                <div class="input-group input-group-sm mb-2">
+                    <textarea class="form-control legenda-completa" rows="3" readonly>{{ item.legenda_completa }}</textarea>
+                    <button type="button" class="btn btn-outline-primary copy-legenda">
+                        <i class="fas fa-copy me-1"></i>Copiar legenda
+                    </button>
+                </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm copy-sponsor-logo" data-logo-url="{{ url_for('ranking.public_extra_sponsor_logo', sponsor_id=sp.id) }}">
+                    <i class="fas fa-image"></i> Copiar logo
+                </button>
+            </div>
+            {% endfor %}
+
+            {% if not sponsor_logo_url and not sponsors_extra %}
+            <p class="text-muted mb-0">Nenhum patrocinador cadastrado para este mês.
+                {% if can_manage_sponsor %}<a href="{{ url_for('ranking.patrocinadores', year=selected_year, month=selected_month) }}">Cadastrar agora</a>.{% endif %}
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    {# CONFERÊNCIA AUTOMÁTICA (27/08/2026) — fica aqui porque é o ranking que
+       fica errado quando a coleta do WhatsApp perde link, então é aqui que se
+       decide o quanto a rede aperta. #}
+    {% if conf_pode_mudar %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                <div>
+                    <strong><i class="fas fa-shield-halved me-1 text-success"></i>
+                        Conferência automática</strong>
+                    <div class="text-muted small mt-1" style="max-width: 620px;">
+                        Nos dias <strong>10</strong>, <strong>20</strong> e no
+                        <strong>último dia do mês</strong> o sistema compara o Strava de cada
+                        atleta que postou link no mês com o que está no ranking, e traz o que
+                        faltou. É a rede contra a coleta do WhatsApp perder mensagem.
+                        <ul class="mb-1 mt-1">
+                          <li><strong>Dias 10 e 20</strong> — roda depois do último ranking do
+                            dia e lança <strong>no máximo 3 links por pessoa</strong>. Se faltar
+                            algum link mais antigo que o marco anterior (o dia 1º, no dia 10; o
+                            dia 10, no dia 20), <strong>não lança nenhum daquela pessoa</strong>:
+                            ela precisa postar no grupo, e é isso que o aviso pede.</li>
+                          <li><strong>Último dia do mês</strong> — às 22h30, lança
+                            <strong>tudo</strong> o que faltar, de todo mundo, sem limite. Se
+                            entrar km novo, a máquina acorda e sai <strong>mais um ranking</strong>
+                            naquela noite, para ninguém discutir número no dia seguinte.</li>
+                        </ul>
+                        {% if conf_dias == 0 %}
+                          <br><strong class="text-warning">Está desligada:</strong> só entra o
+                          que for postado no grupo. Se a coleta falhar, o link não entra.
+                        {% endif %}
+                    </div>
+                </div>
+                <form method="post" action="{{ url_for('ranking.definir_conferencia') }}"
+                      class="d-flex align-items-center gap-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    {# 20/09/2026 (P-136): os dias sao fixos agora; o que sobra
+                       para escolher e' ligada ou desligada. #}
+                    <select name="dias" class="form-select form-select-sm" style="width: auto;">
+                        <option value="4" {% if conf_dias != 0 %}selected{% endif %}>ligada (dias 10, 20 e último)</option>
+                        <option value="0" {% if conf_dias == 0 %}selected{% endif %}>desligada</option>
+                    </select>
+                    <button type="submit" class="btn btn-outline-primary btn-sm">Salvar</button>
+                </form>
+            </div>
+
+            {# PEDIDO PONTUAL (27/08/2026) — quando se descobre que a coleta
+               falhou, esperar o prazo é esperar demais. Some sozinho depois de
+               atendido, para ninguém deixar a conferência diária ligada por
+               engano. #}
+            <hr class="my-3">
+            <form method="post" action="{{ url_for('ranking.forcar_conferencia') }}"
+                  class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="ligar" value="{{ '0' if conf_forcada else '1' }}">
+                <div class="small">
+                    {% if conf_forcada %}
+                        <span class="badge bg-success">pedida</span>
+                        <strong>A conferência vai rodar na próxima vez que o ranking rodar.</strong>
+                        Depois disso, o ritmo normal volta a valer sozinho.
+                    {% else %}
+                        <i class="fas fa-bolt text-warning me-1"></i>
+                        Achou que faltou link no grupo? Peça a conferência para a
+                        <strong>próxima rodada</strong>, sem esperar o prazo.
+                    {% endif %}
+                </div>
+                <button type="submit"
+                        class="btn btn-sm {{ 'btn-outline-secondary' if conf_forcada else 'btn-warning' }}">
+                    {% if conf_forcada %}
+                        <i class="fas fa-xmark"></i> Cancelar pedido
+                    {% else %}
+                        <i class="fas fa-bolt"></i> Conferir na próxima rodada
+                    {% endif %}
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if ranking_data %}
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Total Atletas Corrida</h5>
+                    <p class="card-text display-6">{{ ranking_data['corrida_caminhada']['total_atletas'] }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Medalhistas Corrida</h5>
+                    <p class="card-text display-6 text-success">{{ ranking_data['corrida_caminhada']['medalhistas'] }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Total Atletas Ciclismo</h5>
+                    <p class="card-text display-6">{{ ranking_data['ciclismo']['total_atletas'] }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Medalhistas Ciclismo</h5>
+                    <p class="card-text display-6 text-success">{{ ranking_data['ciclismo']['medalhistas'] }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">KM Total Corrida (Mês)</h5>
+                    <p class="card-text display-6">{{ "%.1f"|format(ranking_data['corrida_caminhada']['total_km']) }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">KM Total Ciclismo (Mês)</h5>
+                    <p class="card-text display-6">{{ "%.1f"|format(ranking_data['ciclismo']['total_km']) }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script id="rankingTextPayload" type="application/json">
+{{ (ranking_text or '') | tojson }}
+</script>
+<script id="rankingShareUrlPayload" type="application/json">
+{{ (ranking_share_url or '') | tojson }}
+</script>
+<script id="sponsorLogoUrlPayload" type="application/json">
+{{ (sponsor_logo_url or '') | tojson }}
+</script>
+
+<script>
+    function fallbackCopy(text) {
+        if (!text || typeof text !== 'string') {
+            return false;
+        }
+
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.style.top = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+
+        let copied = false;
+        try {
+            copied = document.execCommand('copy');
+        } catch (error) {
+            copied = false;
+        } finally {
+            document.body.removeChild(textarea);
+        }
+        return copied;
+    }
+
+    function getPayloadText(id) {
+        const payload = document.getElementById(id);
+        if (!payload) {
+            return '';
+        }
+        try {
+            const parsed = JSON.parse(payload.textContent || '""');
+            return typeof parsed === 'string' ? parsed.trim() : '';
+        } catch (error) {
+            console.error('Falha ao ler payload:', id, error);
+            return '';
+        }
+    }
+
+    function getRankingTextFromDom() {
+        const rankingDiv = document.getElementById('rankingContent');
+        if (!rankingDiv) {
+            return '';
+        }
+        return (rankingDiv.innerText || rankingDiv.textContent || '').trim();
+    }
+
+    async function copyPlainText(text) {
+        if (!text) {
+            return false;
+        }
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+        return fallbackCopy(text);
+    }
+
+    async function imageUrlToPngBlob(rawUrl) {
+        const imageUrl = new URL(rawUrl, window.location.origin).toString();
+        const response = await fetch(imageUrl, { credentials: 'same-origin' });
+        if (!response.ok) {
+            throw new Error('Falha ao carregar imagem do patrocinador.');
+        }
+
+        const sourceBlob = await response.blob();
+        const objectUrl = URL.createObjectURL(sourceBlob);
+        try {
+            const image = await new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error('Falha ao preparar imagem do patrocinador.'));
+                img.src = objectUrl;
+            });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = image.naturalWidth || image.width;
+            canvas.height = image.naturalHeight || image.height;
+            const context = canvas.getContext('2d');
+            context.drawImage(image, 0, 0);
+
+            return await new Promise((resolve, reject) => {
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        resolve(blob);
+                    } else {
+                        reject(new Error('Falha ao converter imagem do patrocinador.'));
+                    }
+                }, 'image/png');
+            });
+        } finally {
+            URL.revokeObjectURL(objectUrl);
+        }
+    }
+
+    async function copyTextWithSponsorImage(text, sponsorLogoUrl) {
+        if (!navigator.clipboard || !navigator.clipboard.write || !window.ClipboardItem || !window.isSecureContext) {
+            return false;
+        }
+
+        const textItem = new ClipboardItem({
+            'text/plain': new Blob([text], { type: 'text/plain' })
+        });
+        const imageBlob = await imageUrlToPngBlob(sponsorLogoUrl);
+        const imageItem = new ClipboardItem({
+            'image/png': imageBlob
+        });
+
+        await navigator.clipboard.write([textItem, imageItem]);
+        return true;
+    }
+
+    async function copyLogoFromUrl(sponsorLogoUrl) {
+        if (!sponsorLogoUrl) {
+            alert('Nenhuma logo cadastrada para copiar.');
+            return;
+        }
+
+        try {
+            if (navigator.clipboard && navigator.clipboard.write && window.ClipboardItem && window.isSecureContext) {
+                const imageBlob = await imageUrlToPngBlob(sponsorLogoUrl);
+                await navigator.clipboard.write([
+                    new ClipboardItem({ 'image/png': imageBlob })
+                ]);
+                alert('Logo copiada. Agora cole no WhatsApp.');
+                return;
+            }
+        } catch (error) {
+            console.error('Falha ao copiar a logo:', error);
+        }
+
+        window.open(new URL(sponsorLogoUrl, window.location.origin).toString(), '_blank', 'noopener');
+        alert('O navegador não permitiu copiar a imagem diretamente. Abri a logo em uma nova aba para copiar manualmente.');
+    }
+
+    async function copyLegenda(button) {
+        const area = button.closest('.input-group').querySelector('.legenda-completa');
+        const text = area ? (area.value || '').trim() : '';
+        if (!text) {
+            alert('Legenda vazia.');
+            return;
+        }
+        if (await copyPlainText(text)) {
+            const original = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-check me-1"></i>Copiado';
+            setTimeout(function () { button.innerHTML = original; }, 2000);
+        } else {
+            alert('Falha ao copiar legenda. Copie manualmente o texto.');
+        }
+    }
+
+    async function copyRankingText() {
+        // Aviso ao copiar: se há revisões/feedbacks pendentes, lembra o admin
+        // de resolvê-los antes de mandar o ranking no grupo.
+        const pendRev = {{ revisoes_pendentes|default(0)|int }};
+        const pendFb = {{ feedback_novas|default(0)|int }};
+        if (pendRev + pendFb > 0) {
+            let partes = [];
+            if (pendRev > 0) partes.push(pendRev + ' revisão(ões) de anticheat');
+            if (pendFb > 0) partes.push(pendFb + ' feedback(s) novo(s)');
+            if (!confirm('Atenção: há ' + partes.join(' e ') + ' pendente(s). Copiar o ranking mesmo assim?')) {
+                return;
+            }
+        }
+
+        const includeSponsorImage = document.getElementById('includeSponsorImageOption')?.checked === true;
+        const sponsorLogoUrl = getPayloadText('sponsorLogoUrlPayload');
+        const baseText = getPayloadText('rankingTextPayload') || getRankingTextFromDom();
+
+        if (!baseText) {
+            alert('O ranking está vazio no momento.');
+            return;
+        }
+
+        const text = baseText;
+        let sponsorImageCopyFailed = false;
+
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                if (includeSponsorImage && sponsorLogoUrl) {
+                    try {
+                        if (await copyTextWithSponsorImage(text, sponsorLogoUrl)) {
+                            alert('Ranking copiado com sucesso! Quando suportado pelo navegador, a logo irá junto como item separado.');
+                            return;
+                        }
+                    } catch (imageError) {
+                        console.error('Falha ao copiar a logo junto com o ranking:', imageError);
+                        sponsorImageCopyFailed = true;
+                    }
+                }
+                await navigator.clipboard.writeText(text);
+                alert(sponsorImageCopyFailed
+                    ? 'Ranking copiado. O navegador não permitiu copiar a logo junto.'
+                    : 'Ranking copiado com sucesso!');
+                return;
+            }
+        } catch (error) {
+            console.error('Clipboard API falhou, tentando fallback:', error);
+            sponsorImageCopyFailed = includeSponsorImage && !!sponsorLogoUrl;
+        }
+
+        if (fallbackCopy(text)) {
+            alert(sponsorImageCopyFailed
+                ? 'Ranking copiado. O navegador não permitiu copiar a logo junto.'
+                : 'Ranking copiado com sucesso!');
+        } else {
+            alert('Falha ao copiar ranking. Copie manualmente o conteúdo.');
+        }
+    }
+
+    async function copyGoalMessage(button) {
+        const item = button.closest('.goal-message-item');
+        const textarea = item ? item.querySelector('.goal-message-text') : null;
+        const text = textarea ? textarea.value.trim() : '';
+        if (!text) {
+            alert('Mensagem vazia.');
+            return;
+        }
+
+        try {
+            if (await copyPlainText(text)) {
+                alert('Mensagem de meta copiada. Cole no WhatsApp para gerar a prévia da logo.');
+            } else {
+                alert('Falha ao copiar mensagem. Copie manualmente o texto.');
+            }
+        } catch (error) {
+            console.error('Falha ao copiar mensagem de meta:', error);
+            alert('Falha ao copiar mensagem. Copie manualmente o texto.');
+        }
+    }
+
+    function loadRanking() {
+        const selectedMonth = document.getElementById('monthSelector').value;
+        const [year, month] = selectedMonth.split('-');
+        window.location.href = "{{ url_for('ranking.view_month', year=0, month=0) }}".replace('/0/0', `/${year}/${month}`);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const copyButton = document.getElementById('copyRankingButton');
+        if (copyButton) {
+            copyButton.addEventListener('click', function () {
+                copyRankingText();
+                // COPIAR CONTA COMO PUBLICACAO (09/09/2026). Ate aqui so' a
+                // automacao deixava rastro: o ranking colado a mao no grupo
+                // era invisivel para o sistema, e o aviso do Windows acordava
+                // o dono dizendo que "o ranking nao saiu" horas depois de ele
+                // mesmo ter publicado. Registra a INTENCAO; quem confirma e' a
+                // rodada seguinte, olhando a conversa do grupo.
+                const dados = new FormData();
+                dados.append('ano', {{ selected_year }});
+                dados.append('mes', {{ selected_month }});
+                // Token pelo Jinja: esta tela tambem nao tem input de
+                // csrf_token no DOM, e buscar por ele fazia o registro da
+                // copia falhar calado (mesmo defeito do seletor de sexo,
+                // achado em 09/09).
+                dados.append('csrf_token', "{{ csrf_token() }}");
+                fetch('{{ url_for("ranking.marcar_copiado") }}', {
+                    method: 'POST', body: dados, credentials: 'same-origin'
+                }).catch(function () { /* copiar nao pode falhar por causa disto */ });
+            });
+        }
+        document.querySelectorAll('.copy-sponsor-logo').forEach(function (button) {
+            button.addEventListener('click', function () {
+                copyLogoFromUrl(button.getAttribute('data-logo-url'));
+            });
+        });
+        document.querySelectorAll('.copy-legenda').forEach(function (button) {
+            button.addEventListener('click', function () {
+                copyLegenda(button);
+            });
+        });
+        document.querySelectorAll('.copy-goal-message').forEach(function (button) {
+            button.addEventListener('click', function () {
+                copyGoalMessage(button);
+            });
+        });
+
+        const marcarUrl = "{{ url_for('ranking.marcar_parabens', year=selected_year, month=selected_month) }}";
+        const csrfToken = "{{ csrf_token() }}";
+        document.querySelectorAll('.goal-enviado-check').forEach(function (check) {
+            check.addEventListener('change', async function () {
+                const item = check.closest('.goal-message-item');
+                const enviado = check.checked;
+                try {
+                    const resp = await fetch(marcarUrl, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                        credentials: 'same-origin',
+                        body: JSON.stringify({
+                            chave_atleta: item.dataset.chave,
+                            modalidade: item.dataset.modalidade,
+                            enviado: enviado,
+                        }),
+                    });
+                    const data = await resp.json();
+                    if (!data.ok) throw new Error(data.error || 'falha');
+                    item.classList.toggle('goal-enviado', enviado);
+                    aplicarOcultarEnviados();
+                } catch (erro) {
+                    console.error('Falha ao marcar parabéns:', erro);
+                    check.checked = !enviado;
+                    alert('Não foi possível salvar. Tente novamente.');
+                }
+            });
+        });
+
+        const ocultarSwitch = document.getElementById('ocultarEnviados');
+        function aplicarOcultarEnviados() {
+            const ocultar = ocultarSwitch && ocultarSwitch.checked;
+            document.querySelectorAll('.goal-message-item').forEach(function (item) {
+                if (ocultar && item.classList.contains('goal-enviado')) {
+                    item.style.display = 'none';
+                } else {
+                    item.style.display = '';
+                }
+            });
+        }
+        if (ocultarSwitch) {
+            ocultarSwitch.addEventListener('change', aplicarOcultarEnviados);
+        }
+    });
+</script>
+
+<style>
+.goal-message-item.goal-enviado { opacity: .55; }
+.goal-message-item.goal-enviado textarea { background-color: #f1f3f5; }
+@media print {
+    .btn, .input-group, select, .form-check {
+        display: none !important;
+    }
+    #rankingContent {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        border: none !important;
+        padding: 0 !important;
+    }
+    #rankingContent a {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+}
+</style>
+{% endblock %}

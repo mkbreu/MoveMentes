@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Bem-Vindo(a) - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container text-center py-5">
+    <h1 class="display-4 mb-4">Bem-vindo(a), {{ current_user.nome }}!</h1>
+    <p class="lead">Seu hub central para o projeto MoveMentes.</p>
+
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-4 mb-3">
+            <a href="{{ url_for('upload.index') }}" class="btn btn-primary btn-lg w-100 py-3">
+                <i class="fas fa-upload fa-2x d-block mb-2"></i> Upload de Arquivos
+            </a>
+        </div>
+        <div class="col-md-4 mb-3">
+            <a href="{{ url_for('ranking.current') }}" class="btn btn-success btn-lg w-100 py-3">
+                <i class="fas fa-trophy fa-2x d-block mb-2"></i> Ver Ranking
+            </a>
+        </div>
+        <div class="col-md-4 mb-3">
+            <a href="{{ url_for('config.view_config') }}" class="btn btn-info btn-lg w-100 py-3">
+                <i class="fas fa-cog fa-2x d-block mb-2"></i> Configurações
+            </a>
+        </div>
+        {% if current_user.pode_aprovar %}
+        <div class="col-md-4 mb-3">
+            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-warning btn-lg w-100 py-3 text-white">
+                <i class="fas fa-user-shield fa-2x d-block mb-2"></i> Painel Admin
+            </a>
+        </div>
+        {% endif %}
+        <div class="col-md-4 mb-3">
+            <a href="{{ url_for('auth.logout') }}" class="btn btn-danger btn-lg w-100 py-3">
+                <i class="fas fa-sign-out-alt fa-2x d-block mb-2"></i> Sair
+            </a>
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}

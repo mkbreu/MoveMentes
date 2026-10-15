@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Renomear cidade — Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-9 mx-auto">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <h4 class="mb-0"><i class="fas fa-city me-2"></i>Renomear cidade</h4>
+      <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Voltar ao painel
+      </a>
+    </div>
+
+    <p class="text-muted small">
+      O nome da cidade é a chave que liga atividades, usuários, rankings, patrocinadores e
+      links públicos. Esta tela troca o nome em <strong>todas as tabelas de uma vez</strong>,
+      dentro de uma única transação — ou muda tudo, ou não muda nada.
+      Os <strong>links já enviados no WhatsApp continuam funcionando</strong>: eles são
+      resolvidos pelo código curto, que passa a apontar para o nome novo.
+    </p>
+
+    {# ===== Cidades atuais ===== #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light">
+        <strong><i class="fas fa-list me-1"></i>Cidades no sistema</strong>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+              <tr><th>Cidade</th><th class="text-end">Registros</th><th>Onde</th></tr>
+            </thead>
+            <tbody>
+              {% for c in cidades %}
+              <tr>
+                <td class="fw-bold">{{ c.nome }}</td>
+                <td class="text-end">{{ c.linhas.values() | sum }}</td>
+                <td class="small text-muted">
+                  {% for tabela, n in c.linhas.items() %}{{ tabela }}: {{ n }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3" class="text-muted">Nenhuma cidade encontrada.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    {# ===== Formulário ===== #}
+    <div class="card shadow-sm mb-4 border-warning">
+      <div class="card-header py-2 bg-light">
+        <strong><i class="fas fa-pen me-1"></i>Trocar o nome</strong>
+      </div>
+      <div class="card-body">
+        <form method="POST" id="formRenomear">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="row g-3">
+            <div class="col-md-5">
+              <label class="form-label small fw-bold" for="cidade_origem">Cidade atual</label>
+              <select class="form-select" id="cidade_origem" name="cidade_origem" required>
+                <option value="">Selecione...</option>
+                {% for c in cidades %}
+                <option value="{{ c.nome }}">{{ c.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label small fw-bold" for="cidade_destino">Novo nome</label>
+              <input class="form-control" id="cidade_destino" name="cidade_destino"
+                     maxlength="100" required placeholder="Ex.: Palmeirópolis">
+              <div class="form-text">
+                O novo nome não pode ser de uma cidade que já existe — senão os dados das duas se misturariam.
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-warning small mt-3 mb-3">
+            <i class="fas fa-triangle-exclamation me-1"></i>
+            Antes de confirmar: verifique que <strong>não há upload em andamento</strong>
+            (a tela bloqueia se houver) e, se possível, faça um backup pelo painel.
+            Se você renomear a sua própria cidade, saia e entre de novo depois.
+          </div>
+
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="confirmar" name="confirmar" value="on" required>
+            <label class="form-check-label" for="confirmar">
+              Entendo que isto troca o nome em <strong>todos os registros</strong> desta cidade.
+            </label>
+          </div>
+
+          <button type="submit" class="btn btn-warning">
+            <i class="fas fa-arrow-right-arrow-left me-1"></i>Renomear cidade
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+  var form = document.getElementById('formRenomear');
+  if (!form) { return; }
+  form.addEventListener('submit', function (evento) {
+    var origem = document.getElementById('cidade_origem').value;
+    var destino = document.getElementById('cidade_destino').value.trim();
+    if (!origem || !destino) {
+      evento.preventDefault();
+      alert('Escolha a cidade atual e digite o novo nome.');
+      return;
+    }
+    if (!confirm('Renomear "' + origem + '" para "' + destino + '"?\n\n' +
+                 'Todos os registros dessa cidade passam a usar o nome novo.')) {
+      evento.preventDefault();
+    }
+  });
+}());
+</script>
+{% endblock %}

@@ -1,0 +1,45 @@
+{#
+  COMO A SESSÃO DESTA PESSOA ESTÁ AGORA (19/08/2026).
+
+  Vem de `whatsapp.estado_da_sessao`, que lê `instancias_waha` — o que a MÁQUINA
+  relatou (regra 16-0-D). Nunca do pedido de pareamento: pedido é história
+  ("o que eu pedi e como foi"), estado é agora ("como está"). Confundir os dois
+  fez a tela dizer "Conectado, não precisa fazer nada" em cima de duas sessões
+  que tinham acabado de ser apagadas.
+
+  O mesmo desenho é refeito pelo JavaScript do `whatsapp_sessao.html` a cada
+  atualização — se mudar aqui, mude lá.
+
+  Espera a variável `m` (a linha da equipe), com `m.estado`.
+#}
+{% set e = m.estado %}
+{% if e %}
+<div class="alert alert-{{ e.cor }} py-2 mb-2 small d-flex align-items-start gap-2">
+  <i class="fas {{ 'fa-check-circle' if e.chave == 'conectado'
+                   else 'fa-plug-circle-xmark' if e.chave == 'precisa_parear'
+                   else 'fa-triangle-exclamation' if e.chave == 'falhou'
+                   else 'fa-hourglass-half' if e.chave == 'subindo'
+                   else 'fa-circle-question' }} mt-1"></i>
+  <div>
+    <strong>{{ e.rotulo }}.</strong> {{ e.detalhe }}
+    {# A CAMADA DE BAIXO, AO LADO — NUNCA NO LUGAR (16/09/2026).
+       O vínculo da sessão é uma coisa; a automação estar de pé é outra. Em
+       15/09 o container parado TROCAVA o estado da sessão por "WhatsApp
+       parado", e isso apagava o vínculo que continuava válido. Agora a sessão
+       diz o que é, e esta linha diz que não há automação rodando ali agora —
+       assim a tela nunca chama de "de pé" o que não está. #}
+    {% if e.automacao_parada %}
+      <div class="mt-1" style="font-size:.78rem;">
+        <i class="fas fa-plug-circle-xmark me-1"></i>
+        <strong>A automação não está rodando agora</strong> — o vínculo acima
+        continua valendo e volta a publicar quando ela subir.
+      </div>
+    {% endif %}
+    {% if e.numero %}
+      <div class="text-muted mt-1" style="font-size:.75rem;">
+        número vinculado: {{ e.numero|telefone }}
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}

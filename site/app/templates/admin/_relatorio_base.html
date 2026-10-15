@@ -1,0 +1,71 @@
+{# Base dos documentos que saem do projeto (P-98).
+
+   FEITO PARA IMPRIMIR, e é assim que ele vira PDF: o navegador de quem lê já
+   sabe salvar como PDF, em qualquer telefone ou computador. Não há biblioteca
+   de PDF no servidor -- e num NAS com 243 MB livres, não ter é a decisão certa.
+
+   `@media print` some com a navbar, o rodapé e os botões, e deixa só o
+   documento. #}
+{% extends "base.html" %}
+{% from "admin/_caixa_macros.html" import atalhos %}
+
+{% block chave_atalho %}relatorios{% endblock %}
+{% block content %}
+<style>
+  .rel-folha { max-width: 900px; margin: 0 auto; }
+  .rel-cabeca { border-bottom: 3px solid #2f4a1f; padding-bottom: .8rem; margin-bottom: 1.2rem; }
+  .rel-marca { font-size: 1.5rem; font-weight: 700; color: #2f4a1f; letter-spacing: -.02em; }
+  .rel-marca span { color: #4a7328; }
+  .rel-titulo { font-size: 1.15rem; font-weight: 600; margin-top: .3rem; }
+  .rel-meta { font-size: .82rem; color: #6c757d; }
+  .rel-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rel-rodape { border-top: 1px solid #ddd; margin-top: 2rem; padding-top: .7rem;
+                font-size: .75rem; color: #6c757d; }
+  .rel-cartao { border: 1px solid #dde3d3; border-radius: 8px; padding: .8rem; text-align: center; }
+  .rel-cartao b { display: block; font-size: 1.45rem; color: #2f4a1f; line-height: 1.15; }
+  .rel-cartao small { color: #6c757d; font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; }
+
+  @media print {
+    nav.navbar, body > footer, .rel-nao-imprime, .alert { display: none !important; }
+    body { background: #fff !important; }
+    main.container, .rel-folha { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+    .card, .rel-cartao { box-shadow: none !important; border: 1px solid #ccc !important; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
+    thead { display: table-header-group; }
+    a { text-decoration: none; color: #000; }
+    .rel-quebra { page-break-before: always; }
+  }
+</style>
+
+<div class="rel-folha">
+
+  {# Atalhos entre as telas de contas: ninguém precisa voltar ao painel (24/09/2026). #}
+  {{ atalhos((self.chave_atalho() | trim) or 'relatorios') }}
+  <div class="d-flex justify-content-end flex-wrap gap-2 mb-3 rel-nao-imprime">
+    {% block botoes_extra %}{% endblock %}
+    <button class="btn btn-sm btn-success" onclick="window.print()">
+      <i class="fas fa-print"></i> Imprimir ou salvar em PDF
+    </button>
+  </div>
+
+  <div class="rel-cabeca">
+    <div class="rel-marca">Move<span>Mentes</span></div>
+    <div class="rel-meta">Mover o corpo para mover a mente &middot; {{ cidade }}</div>
+    <div class="rel-titulo">{% block titulo_relatorio %}{% endblock %}</div>
+    <div class="rel-meta">
+      Período: {{ de.strftime('%d/%m/%Y') }} a {{ ate.strftime('%d/%m/%Y') }}
+      &middot; documento gerado em {{ gerado_em.strftime('%d/%m/%Y às %H:%M') }}
+    </div>
+  </div>
+
+  {% block corpo %}{% endblock %}
+
+  <div class="rel-rodape">
+    Documento gerado pelo sistema do projeto MoveMentes a partir dos registros
+    do período. Os números vêm das atividades registradas no Strava pelos
+    próprios participantes e dos lançamentos do livro-caixa.
+    Contato: {{ dado_local('contato_email') }} &middot; {{ dado_local('contato_telefone_exibicao') }}.
+  </div>
+</div>
+{% endblock %}

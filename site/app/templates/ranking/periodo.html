@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Ranking {{ rotulo }} — MoveMentes{% endblock %}
+{% block content %}
+{# RANKING POR PERÍODO (P-137, 20/09/2026).
+   Uma tela para os quatro períodos. As abas existem SEMPRE, tenha ou não
+   troféu marcado: o admin pode querer olhar e copiar o trimestre mesmo sem
+   premiação. O botão Copiar leva o texto da aba ABERTA — é essa a regra. #}
+<div class="container py-4">
+
+  {% include 'ranking/_abas_periodo.html' %}
+
+  <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+    <h1 class="h3 mb-0">Ranking {{ rotulo }} {{ dados.nome }}</h1>
+    <button id="copiar" class="btn btn-success">
+      <i class="fas fa-copy me-1"></i>Copiar para o WhatsApp
+    </button>
+  </div>
+  <p class="text-muted mb-2">
+    Soma de <strong>{{ '%02d'|format(dados.mes_ini) }}/{{ dados.ano }}</strong> a
+    <strong>{{ '%02d'|format(dados.mes_fim) }}/{{ dados.ano }}</strong> — o bloco do
+    calendário, não os últimos meses. Patrocinadores: {{ sponsor_name }}.
+  </p>
+
+  {% if current_user.pode_administrar %}
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <form method="POST" action="{{ url_for('ranking.definir_periodo_premiado') }}"
+            class="d-flex align-items-center gap-2 flex-wrap">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <span class="small">
+          <i class="fas fa-trophy text-warning me-1"></i>
+          <strong>Troféu desta cidade:</strong>
+        </span>
+        <select name="periodo" class="form-select form-select-sm" style="width:auto;">
+          <option value="" {% if not premiado %}selected{% endif %}>nenhum (sem patrocinador)</option>
+          <option value="trimestre" {% if premiado == 'trimestre' %}selected{% endif %}>a cada trimestre</option>
+          <option value="semestre" {% if premiado == 'semestre' %}selected{% endif %}>a cada semestre</option>
+          <option value="ano" {% if premiado == 'ano' %}selected{% endif %}>uma vez por ano</option>
+        </select>
+        <button class="btn btn-sm btn-outline-primary">Salvar</button>
+        <span class="text-muted small">
+          Vale só para {{ current_user.cidade_ativa }} — cada cidade escolhe a sua.
+          Sem nenhum marcado, o ranking de período não é enviado ao grupo.
+        </span>
+      </form>
+
+      {# FREQUÊNCIA (P-137-b, 20/09/2026). Trimestral conta por semana;
+         semestral por mês, porque semestre é período longo. O anual não sai
+         sozinho: quem quiser copia daqui. Sempre no último ranking do dia. #}
+      {% if periodo in ('trimestre', 'semestre') %}
+      <hr class="my-2">
+      <form method="POST" action="{{ url_for('ranking.definir_frequencia_periodo') }}"
+            class="d-flex align-items-center gap-2 flex-wrap">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="periodo" value="{{ periodo }}">
+        <span class="small">
+          <i class="fas fa-calendar-days text-primary me-1"></i>
+          <strong>Sai no grupo:</strong>
+        </span>
+        <select name="frequencia" class="form-select form-select-sm" style="width:auto;">
+          {% if periodo == 'trimestre' %}
+          <option value="1" {% if frequencia == '1' %}selected{% endif %}>1× por semana (sábado)</option>
+          <option value="2" {% if frequencia == '2' %}selected{% endif %}>2× por semana (quarta e sábado)</option>
+          <option value="3" {% if frequencia == '3' %}selected{% endif %}>3× por semana (segunda, quarta e sábado)</option>
+          <option value="diario" {% if frequencia == 'diario' %}selected{% endif %}>todo dia</option>
+          {% else %}
+          <option value="4" {% if frequencia == '4' %}selected{% endif %}>4× por mês (dias 7, 14, 21 e 28)</option>
+          <option value="6" {% if frequencia == '6' %}selected{% endif %}>6× por mês (5, 10, 15, 20, 25 e 28)</option>
+          <option value="8" {% if frequencia == '8' %}selected{% endif %}>8× por mês (4, 8, 12, 16, 20, 24, 28 e o último)</option>
+          {% endif %}
+        </select>
+        <button class="btn btn-sm btn-outline-primary">Salvar</button>
+        <span class="text-muted small">
+          Sempre no último ranking do dia — o horário é o da tela
+          "Quem publica e quando". Nesse dia sai <strong>este</strong> ranking
+          no lugar do mensal, nunca os dois.
+        </span>
+      </form>
+      {% elif periodo == 'ano' %}
+      <hr class="my-2">
+      <p class="text-muted small mb-0">
+        O ranking anual não sai sozinho no grupo: ele aparece na virada do mês,
+        quando ainda não há km no mês novo, e sempre que alguém copiar daqui.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div id="texto" class="border rounded p-3 bg-light mb-4"
+       style="white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;">{{ ranking_text }}</div>
+
+  <div class="row g-4">
+  {% for chave, titulo in [('corrida_caminhada', 'Corrida/Caminhada'), ('ciclismo', 'Ciclismo')] %}
+    {% set sec = dados[chave] %}
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <strong>{{ titulo }}</strong> — {{ "%.1f"|format(sec.total_km or 0) }} km
+        </div>
+        <div class="p-3 pb-0">
+          <input class="form-control busca-atleta" type="search"
+                 placeholder="Buscar atleta pelo nome" autocomplete="off">
+        </div>
+        <div class="list-group list-group-flush">
+          {% for atleta in sec.atletas %}
+          <a class="list-group-item list-group-item-action athlete-row"
+             data-athlete-nome="{{ atleta.nome }}"
+             href="{{ url_for('athlete.dashboard', strava_id=atleta.strava_id, name_key=atleta.name_key, periodo=periodo) }}">
+            #{{ atleta.rank }} {{ atleta.nome }}
+            <span class="float-end badge bg-primary">{{ "%.1f"|format(atleta.km) }} km</span>
+          </a>
+          {% else %}
+          <div class="list-group-item text-muted">Sem atividades neste período.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+  </div>
+</div>
+<script>
+document.getElementById('copiar').addEventListener('click', async () => {
+  // O TEXTO DA ABA ABERTA, sempre: quem está olhando o trimestre copia o
+  // trimestre (regra do dono, 20/09/2026).
+  await navigator.clipboard.writeText({{ ranking_text|tojson }});
+  const b = document.getElementById('copiar');
+  const antes = b.innerHTML;
+  b.innerHTML = '<i class="fas fa-check me-1"></i>Copiado';
+  setTimeout(() => { b.innerHTML = antes; }, 1800);
+});
+document.querySelectorAll('.busca-atleta').forEach(campo => campo.addEventListener('input', () => {
+  const termo = campo.value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  campo.closest('.card').querySelectorAll('.athlete-row').forEach(linha => {
+    const nome = (linha.dataset.athleteNome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    linha.classList.toggle('d-none', !!termo && !nome.includes(termo));
+  });
+}));
+</script>
+{% endblock %}

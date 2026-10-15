@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Limpeza de cópias de Palmeirópolis - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card shadow mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between" style="background-color: #C9FF6E; color: #1a1a1a;">
+                <h4 class="mb-0"><i class="fas fa-broom me-2"></i>Limpeza das cópias de Palmeirópolis (ano 2026)</h4>
+                <a href="{{ url_for('admin.comandos') }}" class="btn btn-sm btn-outline-dark">
+                    <i class="fas fa-arrow-left me-1"></i>Voltar
+                </a>
+            </div>
+            <div class="card-body">
+                <p>
+                    Em 19/07/2026 o histórico de Palmeirópolis foi copiado para a cidade <strong>Sistema</strong>.
+                    Para o ano de <strong>2026</strong> a coleta própria do Sistema já cobre o período, então essas
+                    cópias fazem a página pública do atleta mostrar o dobro dos km do ano.
+                </p>
+                <p class="mb-1">
+                    Esta ação apaga <strong>somente</strong> as atividades da cidade Sistema com marcador
+                    <code>{{ marcador }}</code>, e <strong>apenas no período que você escolher</strong> (ano, mês ou data).
+                    Nunca toca em atividades coletadas de verdade. Escolha só os períodos em que você já refez a
+                    coleta própria — os demais são a única fonte do histórico consolidado.
+                </p>
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-database me-1"></i>
+                    Antes de apagar, um <strong>backup físico do banco</strong> é criado automaticamente em
+                    <code>instance/</code>. Se o backup falhar, nada é apagado.
+                </div>
+
+                {% if resumo %}
+                <h6 class="mt-4">Cópias que ainda existem (todas as datas)</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped align-middle">
+                        <thead class="table-light">
+                            <tr><th>Mês</th><th class="text-end">Atividades</th><th class="text-end">Km</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for linha in resumo %}
+                            <tr>
+                                <td>{{ linha.label }}</td>
+                                <td class="text-end">{{ linha.qtd }}</td>
+                                <td class="text-end">{{ "%.1f"|format(linha.km) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="fw-bold">
+                                <td>Total</td>
+                                <td class="text-end">{{ total_qtd }}</td>
+                                <td class="text-end">{{ "%.1f"|format(total_km) }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <hr>
+                <h6 class="mt-3">Escolha o que apagar</h6>
+                <form method="post" id="formLimpeza"
+                      onsubmit="return confirm('Apagar as cópias do período escolhido? O backup físico será criado antes de qualquer exclusão.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-sm-4">
+                            <label class="form-label small fw-bold">Apagar por</label>
+                            <select class="form-select" name="tipo_periodo" id="tipoPeriodo">
+                                <option value="ano">Ano inteiro</option>
+                                <option value="mes">Mês e ano</option>
+                                <option value="data">Data exata</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="form-label small fw-bold">Ano</label>
+                            <select class="form-select" name="ano">
+                                {% for a in anos_disponiveis %}
+                                <option value="{{ a }}" {% if a == ano_atual %}selected{% endif %}>{{ a }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-sm-3 campo-mes d-none">
+                            <label class="form-label small fw-bold">Mês</label>
+                            <select class="form-select" name="mes">
+                                {% for numero, nome in [(1,'Jan'),(2,'Fev'),(3,'Mar'),(4,'Abr'),(5,'Mai'),(6,'Jun'),(7,'Jul'),(8,'Ago'),(9,'Set'),(10,'Out'),(11,'Nov'),(12,'Dez')] %}
+                                <option value="{{ numero }}">{{ nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-sm-2 campo-dia d-none">
+                            <label class="form-label small fw-bold">Dia</label>
+                            <input class="form-control" type="number" name="dia" min="1" max="31" value="1">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-danger mt-3">
+                        <i class="fas fa-trash-alt me-1"></i>Fazer backup e apagar as cópias do período
+                    </button>
+                </form>
+                <script>
+                (function () {
+                  var tipo = document.getElementById('tipoPeriodo');
+                  var mes = document.querySelector('.campo-mes');
+                  var dia = document.querySelector('.campo-dia');
+                  function aplicar() {
+                    var v = tipo.value;
+                    mes.classList.toggle('d-none', v === 'ano');
+                    dia.classList.toggle('d-none', v !== 'data');
+                  }
+                  tipo.addEventListener('change', aplicar);
+                  aplicar();
+                }());
+                </script>
+                {% else %}
+                <div class="alert alert-success mb-0">
+                    <i class="fas fa-check-circle me-1"></i>
+                    Nenhuma cópia encontrada — a limpeza já foi concluída (ou nada havia para apagar).
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

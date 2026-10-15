@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Índice das telas - MoveMentes{% endblock %}
+
+{% block content %}
+<style>
+  /* Os três níveis pela indentação e pelo peso, não por caixinha dentro de
+     caixinha: caixa aninhada come a largura e vira escada em celular. */
+  .nivel2 { border-left: 3px solid #dee2e6; }
+  .nivel2.orfa { border-left-color: #dc3545; }
+  .nivel3 { border-left: 2px dotted #dee2e6; margin-left: 1.1rem; }
+  .tela-orfa, .tela-orfa a { color: #dc3545 !important; }
+  .rota { font-family: ui-monospace, Consolas, monospace; font-size: .78rem; }
+
+  /* A LINHA INTEIRA ABRE A TELA (pedido do dono em 09/08: "não precisa ter a
+     dificuldade de pegar o mouse e encostar no botão abrir"). O botãozinho
+     saiu; o alvo agora é a faixa toda, o que resolve principalmente no
+     celular. Aqui a linha continua sendo linha e não card porque o índice é
+     lista longa — em card, 57 telas viram uma rolagem sem fim. */
+  a.linha-tela {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 6px;
+    transition: background-color .12s ease;
+  }
+  a.linha-tela:hover, a.linha-tela:focus-visible {
+    background-color: #f1f3f5;
+    color: inherit;
+  }
+  a.linha-tela:focus-visible { outline: 3px solid #0d6efd; outline-offset: 1px; }
+  .nivel2.orfa a.linha-tela:hover { background-color: #fdeaec; }
+</style>
+
+<div class="row"><div class="col-lg-11 mx-auto">
+
+  <div class="card shadow mb-4">
+    <div class="card-header d-flex align-items-center justify-content-between"
+         style="background-color: #C9FF6E; color: #1a1a1a;">
+      <h4 class="mb-0"><i class="fas fa-sitemap me-2"></i>Índice das telas</h4>
+      <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-dark">
+        <i class="fas fa-arrow-left me-1"></i>Voltar
+      </a>
+    </div>
+    <div class="card-body">
+
+      <p class="text-muted small mb-2">
+        Todas as telas do sistema, por assunto. Esta lista <strong>não é escrita
+        à mão</strong>: ela sai do próprio sistema a cada carregamento, então
+        tela nova aparece aqui sozinha.
+      </p>
+
+      <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+        <span class="badge bg-dark">{{ total }} telas</span>
+        {% if orfas %}
+          <span class="badge bg-danger">{{ orfas }} sem caminho até elas</span>
+          <span class="small text-danger">
+            <i class="fas fa-triangle-exclamation me-1"></i>
+            Em <strong>vermelho</strong>: nenhuma outra tela leva até ela. Só
+            abre digitando o endereço — está no lugar certo do índice, mas
+            escondida no site.
+          </span>
+        {% else %}
+          <span class="badge bg-success">nenhuma escondida</span>
+        {% endif %}
+        {% if dominios_velhos %}
+          <span class="badge bg-danger">{{ dominios_velhos }} com domínio antigo</span>
+          <span class="small text-danger">
+            <i class="fas fa-triangle-exclamation me-1"></i>
+            Template escrevendo <code>dominio-antigo.exemplo.com</code> à mão —
+            migração de domínio de 07/09/2026 (deveria ler de
+            <code>app/enderecos.py</code>).
+          </span>
+        {% endif %}
+      </div>
+
+      {% for cat in arvore %}
+      {# ===== NÍVEL 1 — o assunto ===== #}
+      <div class="card mb-3 {% if cat.orfas or cat.dominios_velhos %}border-danger{% endif %}">
+        <div class="card-header py-2 bg-white d-flex align-items-center gap-2">
+          <i class="fas {{ cat.icone }}"></i>
+          <strong>{{ cat.titulo }}</strong>
+          <span class="badge bg-secondary">{{ cat.telas|length }}</span>
+          {% if cat.orfas %}
+            <span class="badge bg-danger">{{ cat.orfas }} escondida{{ 's' if cat.orfas != 1 }}</span>
+          {% endif %}
+          {% if cat.dominios_velhos %}
+            <span class="badge bg-danger">{{ cat.dominios_velhos }} domínio antigo</span>
+          {% endif %}
+        </div>
+        <div class="card-body py-2">
+          <p class="small text-muted mb-2">{{ cat.descricao }}</p>
+
+          {% for tela in cat.telas %}
+          {# ===== NÍVEL 2 — a tela ===== #}
+          <div class="nivel2 ps-3 py-2 mb-1 {% if tela.orfa or tela.dominio_velho %}orfa{% endif %}">
+            {# ATENÇÃO: aqui é `tela.url` (o endereço cru), NUNCA `url_for`.
+               O índice mede orfandade contando quem chama `url_for`. Se ele
+               próprio chamasse, toda tela ficaria "alcançável" — inclusive as
+               que ninguém alcança — e o vermelho nunca mais apareceria. O
+               detector deixaria de detectar por causa da própria tela que
+               existe para mostrar o resultado. #}
+            <a href="{{ tela.url }}" class="linha-tela px-2 py-1">
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <i class="fas {{ tela.icone }} {{ 'text-danger' if (tela.orfa or tela.dominio_velho) else 'text-secondary' }}"></i>
+                <strong class="{% if tela.orfa or tela.dominio_velho %}tela-orfa{% endif %}">{{ tela.nome }}</strong>
+                <span class="{% if tela.orfa or tela.dominio_velho %}tela-orfa{% else %}text-muted{% endif %}">
+                  — {{ tela.titulo }}
+                </span>
+                <span class="rota text-muted">{{ tela.url }}</span>
+                {% if tela.orfa %}
+                  <span class="badge bg-danger">escondida</span>
+                {% endif %}
+                {% if tela.dominio_velho %}
+                  <span class="badge bg-danger">domínio antigo</span>
+                {% endif %}
+              </div>
+            </a>
+
+            {% if tela.filhos %}
+            {# ===== NÍVEL 3 — para onde esta tela leva =====
+               Pode apontar para outra categoria, e está tudo bem: lá ela
+               aparece no nível 2 dela. Aqui a pergunta é "de onde dá para
+               chegar", não "a quem pertence". #}
+            <div class="nivel3 ps-3 mt-1">
+              <div class="small text-muted">Daqui você chega em:</div>
+              {% for filho in tela.filhos %}
+                <div class="small">
+                  <a href="{{ filho.url }}">{{ filho.nome }}</a>
+                  <span class="text-muted">— {{ filho.titulo }}</span>
+                  <span class="rota text-muted">{{ filho.url }}</span>
+                </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+
+        </div>
+      </div>
+      {% endfor %}
+
+      <p class="small text-muted mb-0">
+        <strong>Como a tela escondida é descoberta:</strong> o sistema procura,
+        em todas as telas, os links que apontam para cada uma. Se nenhuma
+        apontar, ela é marcada em vermelho — é a mesma conta que o navegador
+        faz. Menu, card ou link no meio de um texto: tudo conta, porque tudo é
+        caminho de verdade.
+      </p>
+
+    </div>
+  </div>
+
+</div></div>
+{% endblock %}

@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% from "admin/_caixa_macros.html" import reais, saldo, custo, atalhos %}
+{% block title %}Prestação de Contas — {{ cidade }}{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 900px;">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <h4 class="mb-0"><i class="fas fa-hand-holding-dollar me-2"></i>Prestação de Contas</h4>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{{ url_for('ranking.transparencia_public', city_slug=city_slug) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info">
+        <i class="fas fa-eye me-1"></i>Ver página pública
+      </a>
+      <a href="{{ url_for('caixa.index', ano=sel_ano, mes=sel_mes) }}" class="btn btn-sm btn-outline-success">
+        <i class="fas fa-book me-1"></i>Livro-caixa
+      </a>
+      <a href="{{ url_for('relatorios.despesas') }}" class="btn btn-sm btn-outline-success">
+        <i class="fas fa-file-invoice-dollar me-1"></i>Relatório de despesas
+      </a>
+      <a href="{{ url_for('config.view_config') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Voltar
+      </a>
+    </div>
+  </div>
+
+  {{ atalhos('prestacao', sel_ano, sel_mes) }}
+
+  <!-- O saldo consolidado: onde o projeto está, somando tudo até este mês -->
+  <div class="card shadow-sm mb-3 {{ 'border-danger' if consolidado.ate < 0 else 'border-success' }}">
+    <div class="card-body">
+      <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center">
+        <div>
+          <div class="small text-muted text-uppercase">Saldo consolidado até {{ meses_nome[sel_mes] }}/{{ sel_ano }}</div>
+          <div class="fs-3 lh-1">{{ saldo(consolidado.ate) }}</div>
+        </div>
+        <div class="small text-muted">
+          Veio dos meses anteriores: <strong>{{ saldo(consolidado.anterior, forte=False) }}</strong><br>
+          Resultado do mês: <strong>{{ saldo(consolidado.mes, forte=False) }}</strong><br>
+          Saldo de todos os meses até hoje: <strong>{{ saldo(saldo_total, forte=False) }}</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Seletor de mês/ano -->
+  <form method="GET" action="{{ url_for('config.prestacao') }}" class="card card-body mb-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label for="selMes" class="form-label mb-1 small fw-bold">Mês</label>
+        <select id="selMes" name="mes" class="form-select">
+          {% for m in range(1, 13) %}
+          <option value="{{ m }}" {{ 'selected' if m == sel_mes else '' }}>{{ meses_nome[m] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <label for="selAno" class="form-label mb-1 small fw-bold">Ano</label>
+        <input type="number" id="selAno" name="ano" class="form-control" value="{{ sel_ano }}" min="2020" max="{{ sel_ano + 1 }}">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-calendar-day me-1"></i>Abrir mês</button>
+      </div>
+    </div>
+    <small class="text-muted mt-2">Meses disponíveis:
+      {% for a, m in meses_opcoes %}
+        <a href="{{ url_for('config.prestacao', ano=a, mes=m) }}" class="{{ 'fw-bold' if a == sel_ano and m == sel_mes else '' }}">{{ meses_nome[m] }}/{{ a }}</a>{{ '' if loop.last else ' · ' }}
+      {% endfor %}
+    </small>
+  </form>
+
+  <!-- Formulário do mês selecionado -->
+  <form method="POST" action="{{ url_for('config.prestacao', ano=sel_ano, mes=sel_mes) }}" class="card mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="card-header bg-primary text-white">
+      <strong>{{ meses_nome[sel_mes] }}/{{ sel_ano }}</strong>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-bold text-success">Valor patrocinado (entrada)</label>
+          <div class="input-group">
+            <span class="input-group-text">R$</span>
+            <input type="text" name="valor_patrocinado" class="form-control" inputmode="decimal"
+                   value="{{ '%.2f'|format(registro.valor_patrocinado or 0) if registro else '0.00' }}">
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-bold">Custo com medalhas</label>
+          <div class="input-group">
+            <span class="input-group-text">R$</span>
+            <input type="text" name="custo_medalhas" class="form-control" inputmode="decimal"
+                   value="{{ '%.2f'|format(registro.custo_medalhas or 0) if registro else '0.00' }}">
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-bold">Custo com arte/design</label>
+          <div class="input-group">
+            <span class="input-group-text">R$</span>
+            <input type="text" name="custo_arte" class="form-control" inputmode="decimal"
+                   value="{{ '%.2f'|format(registro.custo_arte or 0) if registro else '0.00' }}">
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-bold">Energia / infraestrutura</label>
+          <div class="input-group">
+            <span class="input-group-text">R$</span>
+            <input type="text" name="custo_energia" class="form-control" inputmode="decimal"
+                   value="{{ '%.2f'|format(registro.custo_energia or 0) if registro else '0.00' }}">
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-bold">Outros custos</label>
+          <div class="input-group">
+            <span class="input-group-text">R$</span>
+            <input type="text" name="outros_custos" class="form-control" inputmode="decimal"
+                   value="{{ '%.2f'|format(registro.outros_custos or 0) if registro else '0.00' }}">
+          </div>
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-bold">Observações (opcional)</label>
+          <textarea name="observacao" rows="2" class="form-control" maxlength="2000">{{ registro.observacao or '' if registro else '' }}</textarea>
+        </div>
+      </div>
+      <p class="small text-muted mt-3 mb-0">
+        Refeito sozinho a partir do <a href="{{ url_for('caixa.index', ano=sel_ano, mes=sel_mes) }}">Livro-caixa</a> a cada lançamento.
+      </p>
+      {% if registro %}
+      <div class="alert alert-light border mt-3 mb-0 d-flex justify-content-between flex-wrap gap-2">
+        <span>Total de custos: <strong>{{ custo(registro.total_custos) }}</strong></span>
+        <span>Saldo do mês: <strong>{{ saldo(registro.saldo) }}</strong></span>
+      </div>
+      {% endif %}
+    </div>
+    {# 20/09/2026 (item 73): visualizador e patrocinador LEEM a prestação inteira; escrever é do admin para cima (a rota também recusa). #}
+    {% if current_user.pode_administrar %}
+    <div class="card-footer text-end">
+      <button type="submit" class="btn btn-success"><i class="fas fa-save me-1"></i>Salvar prestação</button>
+    </div>
+    {% endif %}
+  </form>
+
+  <!-- Comprovantes -->
+  <div class="card mb-4">
+    <div class="card-header bg-light"><strong><i class="fas fa-paperclip me-1"></i>Comprovantes publicados na página pública</strong></div>
+    <div class="card-body">
+      {% if not registro %}
+      <p class="text-muted mb-0">Salve a prestação deste mês antes de anexar comprovantes.</p>
+      {% else %}
+        {% if registro.comprovantes %}
+        <ul class="list-group mb-3">
+          {% for c in registro.comprovantes %}
+          <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <a href="{{ url_for('ranking.transparencia_comprovante', cid=c.id) }}" target="_blank" rel="noopener">
+              <i class="fas fa-file me-1"></i>{{ c.arquivo_nome }}
+            </a>
+            {% if current_user.pode_administrar %}
+            <form method="POST" action="{{ url_for('config.prestacao_comprovante_remover', cid=c.id) }}" onsubmit="return confirm('Remover este comprovante?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+            </form>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted">Nenhum comprovante anexado.</p>
+        {% endif %}
+        {% if current_user.pode_administrar %}
+        <form method="POST" action="{{ url_for('config.prestacao_comprovante', pid=registro.id) }}" enctype="multipart/form-data" class="row g-2 align-items-center">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-md-8"><input type="file" name="comprovante" class="form-control" accept="image/*,application/pdf" required></div>
+          <div class="col-md-4 d-grid"><button type="submit" class="btn btn-outline-primary"><i class="fas fa-upload me-1"></i>Anexar comprovante</button></div>
+        </form>
+        <small class="text-muted">Imagem ou PDF, até 10 MB. Tudo que for anexado aqui fica visível para qualquer pessoa.</small>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Histórico -->
+  {% if historico %}
+  <div class="card">
+    <div class="card-header bg-light"><strong>Histórico</strong></div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>Mês</th>
+            <th class="text-end">Patrocínio</th>
+            <th class="text-end">Custos</th>
+            <th class="text-end">Saldo do mês</th>
+            <th class="text-end">Saldo consolidado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in historico %}
+          <tr>
+            <td><a href="{{ url_for('config.prestacao', ano=r.ano, mes=r.mes) }}">{{ meses_nome[r.mes] }}/{{ r.ano }}</a></td>
+            <td class="text-end">{{ saldo(r.valor_patrocinado, forte=False) }}</td>
+            <td class="text-end">{{ custo(r.total_custos) }}</td>
+            <td class="text-end">{{ saldo(r.saldo, forte=False) }}</td>
+            <td class="text-end">{{ saldo(acumulado.get((r.ano, r.mes), {}).get('ate', r.saldo)) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

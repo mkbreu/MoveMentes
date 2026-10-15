@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+{% block title %}Livro-caixa — MoveMentes{% endblock %}
+
+{% from "admin/_caixa_macros.html" import reais, saldo, custo, atalhos %}
+
+{% block content %}
+<style>
+  .lc-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .lc-cartao b { display: block; font-size: 1.45rem; line-height: 1.15; }
+  .lc-cartao small { color: #6c757d; text-transform: uppercase; letter-spacing: .05em; font-size: .7rem; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+  <h1 class="h4 mb-0"><i class="fas fa-book text-success"></i> Livro-caixa — {{ cidade }}</h1>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-sm btn-outline-success"
+       href="{{ url_for('caixa.planilha', de=ano ~ '-01-01', ate=ano ~ '-12-31') }}">
+      <i class="fas fa-file-excel"></i> Planilha de {{ ano }} (.xlsx)
+    </a>
+    {% if current_user.pode_administrar %}
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('caixa.exportar', ano=ano) }}"
+       title="Arquivo simples, sem formatação — para importar em outro programa">
+      <i class="fas fa-file-csv"></i> CSV
+    </a>
+    {% endif %}
+  </div>
+</div>
+{{ atalhos('livro', ano, mes) }}
+
+{# ---------- período ---------- #}
+<form method="get" class="card shadow-sm mb-3">
+  <div class="card-body d-flex flex-wrap gap-2 align-items-end">
+    <div>
+      <label class="form-label small mb-1" for="mes">Mês</label>
+      <select class="form-select form-select-sm" id="mes" name="mes">
+        {% for m in range(1, 13) %}
+          <option value="{{ m }}" {{ 'selected' if m == mes }}>{{ '%02d'|format(m) }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label small mb-1" for="ano">Ano</label>
+      <input class="form-control form-control-sm" style="width: 6rem;" id="ano" name="ano"
+             type="number" value="{{ ano }}">
+    </div>
+    <button class="btn btn-sm btn-outline-secondary">Ver</button>
+    {% if meses_com_movimento %}
+    <span class="small text-muted ms-2">Com lançamentos:
+      {% for a, m in meses_com_movimento %}
+        <a href="{{ url_for('caixa.index', ano=a, mes=m) }}" class="{{ 'fw-bold' if a == ano and m == mes }}">{{ '%02d'|format(m) }}/{{ a }}</a>{{ '' if loop.last else ' · ' }}
+      {% endfor %}
+    </span>
+    {% endif %}
+  </div>
+</form>
+
+{# ---------- resumo ---------- #}
+<div class="row g-3 mb-2">
+  <div class="col-6 col-lg-3">
+    <div class="card shadow-sm text-center lc-cartao"><div class="card-body py-3">
+      <b>{{ saldo(resumo.entradas) }}</b><small>entrou no mês</small>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card shadow-sm text-center lc-cartao"><div class="card-body py-3">
+      <b>{{ custo(resumo.saidas) }}</b><small>saiu no mês</small>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card shadow-sm text-center lc-cartao"><div class="card-body py-3">
+      <b>{{ saldo(resumo.saldo) }}</b><small>resultado do mês</small>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card shadow-sm text-center lc-cartao border-success"><div class="card-body py-3">
+      <b>{{ saldo(acumulado.saldo_final) }}</b><small>saldo consolidado até o fim do mês</small>
+    </div></div>
+  </div>
+</div>
+<p class="small text-muted mb-3">
+  Saldo que veio dos meses anteriores: <strong>{{ saldo(acumulado.saldo_anterior, forte=False) }}</strong>
+  + resultado deste mês: <strong>{{ saldo(acumulado.diferenca, forte=False) }}</strong>
+  = <strong>{{ saldo(acumulado.saldo_final, forte=False) }}</strong>.
+</p>
+
+{% if resumo.saidas_lancadas and resumo.saidas_com_documento < resumo.saidas_lancadas %}
+<div class="alert alert-warning small">
+  <strong>{{ resumo.saidas_lancadas - resumo.saidas_com_documento }} saída(s) sem comprovante.</strong>
+</div>
+{% endif %}
+
+{# ---------- lançar ---------- #}
+{% if pode_lancar %}
+<div class="card shadow-sm mb-3">
+  <div class="card-header bg-white py-3">
+    <strong><i class="fas fa-plus text-success"></i> Novo lançamento</strong>
+  </div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('caixa.lancar') }}" enctype="multipart/form-data" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1" for="data">Data</label>
+        <input class="form-control form-control-sm" type="date" id="data" name="data" value="{{ hoje }}" required>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1" for="tipo">Tipo</label>
+        <select class="form-select form-select-sm" id="tipo" name="tipo" required>
+          {% for v, r in tipos %}<option value="{{ v }}">{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label small mb-1" for="categoria">Categoria</label>
+        <select class="form-select form-select-sm" id="categoria" name="categoria" required>
+          <option value="">Escolha…</option>
+          {% for v, r in categorias %}<option value="{{ v }}">{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1" for="valor">Valor</label>
+        <input class="form-control form-control-sm" id="valor" name="valor" placeholder="0,00" required>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small mb-1" for="contraparte">De quem / para quem</label>
+        <input class="form-control form-control-sm" id="contraparte" name="contraparte">
+      </div>
+      <div class="col-12 col-md-5">
+        <label class="form-label small mb-1" for="descricao">Do que se trata</label>
+        <input class="form-control form-control-sm" id="descricao" name="descricao" required>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1" for="documento_tipo">Documento</label>
+        <select class="form-select form-select-sm" id="documento_tipo" name="documento_tipo">
+          {% for v, r in documentos %}<option value="{{ v }}">{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1" for="documento_numero">Número</label>
+        <input class="form-control form-control-sm" id="documento_numero" name="documento_numero">
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label small mb-1" for="anexo">Comprovante (foto ou PDF)</label>
+        <input class="form-control form-control-sm" type="file" id="anexo" name="anexo"
+               accept=".jpg,.jpeg,.png,.webp,.heic,.pdf">
+      </div>
+      <div class="col-12 col-md-6">
+        <label class="form-label small mb-1" for="rubrica">Rubrica do orçamento <span class="text-muted">(opcional)</span></label>
+        <input class="form-control form-control-sm" id="rubrica" name="rubrica" maxlength="120"
+               placeholder="Item do orçamento aprovado">
+      </div>
+      <div class="col-12 col-md-6">
+        <label class="form-label small mb-1" for="observacao">Observação <span class="text-muted">(opcional)</span></label>
+        <input class="form-control form-control-sm" id="observacao" name="observacao" maxlength="2000">
+      </div>
+      <div class="col-12">
+        <button class="btn btn-sm btn-success"><i class="fas fa-check"></i> Lançar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{# ---------- as linhas ---------- #}
+<div class="card shadow-sm mb-3">
+  <div class="card-header bg-white py-3">
+    <strong>Lançamentos de {{ '%02d'|format(mes) }}/{{ ano }}</strong>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Data</th><th>Categoria</th><th>Descrição</th><th>Documento</th>
+          <th class="lc-num">Valor</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in linhas %}
+        <tr>
+          <td class="small">{{ l.data.strftime('%d/%m') }}</td>
+          <td class="small">{{ l.categoria }}</td>
+          <td class="small">
+            {{ l.descricao }}
+            {% if l.contraparte %}<span class="d-block text-muted">{{ l.contraparte }}</span>{% endif %}
+          </td>
+          <td class="small">
+            {% if l.documento_numero %}{{ l.documento_tipo|upper }} {{ l.documento_numero }}{% endif %}
+            {% if l.anexo_path %}
+              <a class="ms-1" href="{{ url_for('caixa.comprovante', lid=l.id) }}" title="Baixar comprovante">
+                <i class="fas fa-paperclip"></i>{% if not l.documento_numero %} comprovante{% endif %}</a>
+            {% elif not l.documento_numero %}
+              <span class="text-muted">pendente</span>
+            {% endif %}
+          </td>
+          <td class="lc-num">{{ saldo(-l.valor if l.tipo == 'saida' else l.valor, forte=False) }}</td>
+          <td class="text-end text-nowrap">
+            {% if pode_editar %}
+            <a class="btn btn-sm btn-outline-secondary py-0 px-1" title="Corrigir"
+               href="{{ url_for('caixa.editar', lid=l.id) }}"><i class="fas fa-pen"></i></a>
+            {% if l.anexo_path %}
+            <form method="post" action="{{ url_for('caixa.revogar_link', lid=l.id) }}" class="d-inline"
+                  onsubmit="return confirm('Desativar o link público deste comprovante? Quem recebeu a planilha ou o PDF antigo deixa de conseguir abrir.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-secondary py-0 px-1" title="Trocar o link público"><i class="fas fa-link-slash"></i></button>
+            </form>
+            {% endif %}
+            {% endif %}
+            {% if pode_lancar %}
+            <form method="post" action="{{ url_for('caixa.apagar', lid=l.id) }}" class="d-inline"
+                  onsubmit="return confirm('Apagar este lançamento? Será feita uma cópia do banco antes, e o histórico guarda quem apagou.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Apagar">
+                <i class="fas fa-trash"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not linhas %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Nenhum lançamento neste mês.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ---------- por categoria + conciliação ---------- #}
+<div class="row g-3 mb-3">
+  <div class="col-12 col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white py-3"><strong>Para onde foi, no ano de {{ ano }}</strong></div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <tbody>
+            {% for c in resumo_ano.por_categoria %}
+            <tr>
+              <td>{{ c.rotulo }}</td>
+              <td class="lc-num">{{ custo(c.valor) }}</td>
+              <td class="lc-num text-muted small">{{ c.lancamentos }}</td>
+            </tr>
+            {% endfor %}
+            {% if not resumo_ano.por_categoria %}
+            <tr><td class="text-muted text-center py-3">Sem saídas lançadas em {{ ano }}.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white py-3"><strong>Conciliação com o extrato</strong></div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('caixa.conciliar') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="ano" value="{{ ano }}">
+          <input type="hidden" name="mes" value="{{ mes }}">
+          <div class="mb-2">
+            <label class="form-label small mb-1" for="saldo_extrato">Saldo no extrato, no fim do mês</label>
+            <input class="form-control form-control-sm" id="saldo_extrato" name="saldo_extrato"
+                   value="{{ '%.2f'|format(conciliacao.saldo_extrato) if conciliacao and conciliacao.saldo_extrato else '' }}"
+                   placeholder="0,00">
+          </div>
+          <p class="small text-muted mb-2">
+            Saldo consolidado pelo livro: <strong>{{ saldo(acumulado.saldo_final, forte=False) }}</strong>.
+          </p>
+          <div class="mb-2">
+            <label class="form-label small mb-1" for="justificativa">Diferença, se houver</label>
+            <textarea class="form-control form-control-sm" id="justificativa" name="justificativa"
+                      rows="2">{{ conciliacao.justificativa if conciliacao else '' }}</textarea>
+          </div>
+          {% if pode_lancar %}
+          <button class="btn btn-sm btn-outline-success">Salvar conciliação</button>
+          {% endif %}
+          {% if conciliacao and conciliacao.conferido_em %}
+          <span class="text-muted small ms-2">
+            conferido em {{ conciliacao.conferido_em.strftime('%d/%m/%Y') }}
+          </span>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ---------- quem mexeu ---------- #}
+<div class="card shadow-sm mb-3">
+  <div class="card-header bg-white py-3">
+    <strong><i class="fas fa-clock-rotate-left text-secondary"></i> Histórico de alterações</strong>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0 align-middle">
+      <tbody>
+        {% for e in historico %}
+        <tr>
+          <td class="small text-nowrap text-muted">{{ e.h.quando.strftime('%d/%m/%Y %H:%M') if e.h.quando else '' }}</td>
+          <td class="small text-nowrap">{{ e.quem }}</td>
+          <td class="small">
+            <span class="badge {{ {'lancou': 'bg-success', 'editou': 'bg-warning text-dark', 'apagou': 'bg-danger'}.get(e.h.acao, 'bg-secondary') }}">
+              {{ {'lancou': 'lançou', 'editou': 'corrigiu', 'apagou': 'apagou', 'conciliou': 'conciliou', 'prestacao': 'editou a prestação', 'anexou': 'anexou', 'removeu': 'removeu', 'revogou': 'trocou o link'}.get(e.h.acao, e.h.acao) }}</span>
+            {{ e.h.resumo }}
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not historico %}
+        <tr><td class="text-center text-muted py-3">Nada registrado ainda.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

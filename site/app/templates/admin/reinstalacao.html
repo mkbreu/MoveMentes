@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Kit de reinstalação — MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row"><div class="col-lg-10 mx-auto">
+
+    <h4 class="mb-1"><i class="fas fa-toolbox me-2"></i>Kit de reinstalação</h4>
+    <p class="text-muted small">
+      O que instalar, em que ordem, e o que precisa ser reiniciado depois —
+      nas três máquinas do sistema. Escrito para o dia em que alguém tiver que
+      levantar tudo do zero, possivelmente sem a pessoa que montou.
+    </p>
+
+    <div class="alert alert-secondary py-2 small">
+      <strong>Ambiente desta instalação agora:</strong>
+      Python {{ ambiente.python }} · {{ ambiente.plataforma }}<br>
+      Aplicação: <code>{{ ambiente.raiz }}</code> · Backups: <code>{{ ambiente.backups }}</code>
+    </div>
+
+    {# ===== 1. Synology ===== #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light"><strong>1. Synology (DS215j) — a aplicação</strong></div>
+      <div class="card-body">
+        <p class="small text-muted">É a fonte da verdade: atletas, km, ranking, patrocinadores, avisos.
+           Fica ligado o tempo todo.</p>
+        <ol class="small">
+          <li>DSM → <strong>Central de Pacotes</strong>: instalar <strong>Web Station</strong>,
+              <strong>Python 3.9</strong> e <strong>Servidor Web Apache/nginx</strong>.</li>
+          <li>Restaurar a aplicação em <code>/volume1/web/movimente-se</code>
+              (zip <code>codigo_*.zip</code> da pasta de backups).</li>
+          <li>Criar o ambiente virtual e instalar as dependências:
+            <pre class="bg-light p-2 mt-1 mb-2"><code>cd /volume1/web/movimente-se
+python3 -m venv venv
+./venv/bin/pip install -r requirements.txt</code></pre>
+          </li>
+          <li>Restaurar o banco: copiar <code>config_*.db</code> da pasta de backups para
+              <code>instance/movimente_se.db</code>.</li>
+          <li>Restaurar o cofre <code>instance/secrets.json</code> (chave de assinatura,
+              cookie do Strava, tokens). <strong>Sem ele</strong> os links públicos já enviados
+              param de abrir e todos os tokens precisam ser gerados de novo.</li>
+          <li>Web Station → criar o portal Python com <code>wsgi.py</code>.</li>
+          <li>Cloudflare Tunnel (<code>cloudflared</code>) apontando para o nginx local.</li>
+        </ol>
+        <div class="alert alert-warning py-2 small mb-0">
+          <strong>Reinício que funciona de verdade:</strong> <code>touch wsgi.py</code>
+          <u>não</u> recarrega nada neste setup — o Web Station gera a própria configuração do
+          uWSGI. O reinício real é:
+          <pre class="bg-light p-2 mt-1 mb-0"><code>sudo systemctl restart pkg-WebStation-python3.9@682bee6b-cafd-4625-91aa-ff28b1f9d888.service</code></pre>
+          (ou pelo DSM → Web Station). Validação antes de salvar código:
+          <code>ast.parse</code> — <code>py_compile</code> falha no NAS por permissão nos
+          <code>__pycache__</code>.
+        </div>
+      </div>
+    </div>
+
+    {# ===== 2. Máquina da automação ===== #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light"><strong>2. Máquina da automação — WhatsApp</strong></div>
+      <div class="card-body">
+        <p class="small text-muted">
+          Descartável de propósito: <strong>nenhum dado do MoveMentes mora aqui</strong>.
+          Trocar de máquina é copiar três coisas: <code>docker-compose.yml</code>,
+          <code>.env</code> e <code>scripts/</code>.
+        </p>
+        <ol class="small">
+          <li>Docker + Docker Compose (no Windows: WSL2 com Debian).</li>
+          <li>Subir PostgreSQL 16 + WAHA pelo <code>docker-compose.yml</code>.</li>
+          <li>No <code>.env</code>, apontar <code>MOVIMENTE_API_URL</code> para a aplicação e
+              colar o token gerado em <a href="{{ url_for('admin.automacao') }}">Painel → Automação</a>.</li>
+          <li>Vincular o WhatsApp de cada cidade — pela tela
+              <a href="{{ url_for('admin.whatsapp_sessao') }}">Sessão do WhatsApp</a>,
+              não pelo painel do WAHA.</li>
+        </ol>
+        <div class="alert alert-danger py-2 small mb-0">
+          <strong>Armadilhas já pagas — não repita:</strong>
+          <ul class="mb-0">
+            <li><code>WHATSAPP_START_SESSION</code> junto com <code>WAHA_WORKER_RESTART_SESSIONS</code>
+                inicia a sessão <strong>duas vezes</strong> e o WhatsApp derruba o vínculo.
+                Deixe só o <code>WAHA_WORKER_RESTART_SESSIONS</code>. O <code>auth timeout</code>
+                no log é a assinatura da colisão.</li>
+            <li><code>WAHA_WORKER_ID</code> precisa ser <strong>fixo</strong>. Sem ele o WAHA usa o
+                hostname do container, que muda a cada recriação, e a sessão vira órfã
+                (<code>Sessions: 0</code> mesmo com os dados no banco).</li>
+            <li>A senha do PostgreSQL <strong>não pode ter <code>@</code></strong>: o WAHA lê a senha
+                dentro de uma URL e não decodifica <code>%40</code>. E não teste por
+                <code>127.0.0.1</code> de dentro do container — o <code>pg_hba.conf</code> tem
+                <code>trust</code> e aceita qualquer senha (falso positivo).</li>
+            <li><code>Exited (143)</code> não é crash: é parada intencional (SIGTERM).
+                E <code>restart: unless-stopped</code> não traz de volta o que foi parado de propósito.</li>
+            <li><code>status: WORKING</code> não quer dizer pronto. Só trabalhe com
+                <code>status=WORKING</code> <strong>e</strong> <code>engine.state=CONNECTED</code>.
+                Arranque a frio leva 60–90 s.</li>
+            <li>Nunca copie a sessão do WhatsApp entre máquinas: a mesma credencial em dois
+                lugares faz o WhatsApp derrubar o vínculo.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    {# ===== 3. Windows ===== #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light"><strong>3. Windows — agendamento e acesso</strong></div>
+      <div class="card-body">
+        <ul class="small mb-0">
+          <li>Atalho <code>manter_wsl_vivo.vbs</code> em <code>shell:startup</code>. Sem ele o WSL
+              encerra a distro sozinho, o Chromium morre e nada interativo funciona
+              (o QR nem chega a existir).</li>
+          <li>Gatilho de logon no Agendador de Tarefas exige elevação — para tarefa de usuário,
+              use atalho em <code>shell:startup</code>.</li>
+          <li>Chamar <code>wsl</code> a partir de um disco de rede (<code>Z:</code>) dá
+              <code>Failed to translate</code>. Rode <code>cd C:\</code> antes.</li>
+          <li><code>networkingMode=mirrored</code> exige Windows 11 22H2+; no Windows 10 é
+              <strong>ignorado em silêncio</strong>. Use <code>netsh portproxy</code>, refeito a cada
+              boot porque o IP do WSL muda.</li>
+        </ul>
+      </div>
+    </div>
+
+    {# ===== Regra de ouro ===== #}
+    <div class="alert alert-danger">
+      <strong>A regra que não se quebra:</strong> nunca escreva no banco por fora da aplicação.
+      O SQLite fica em disco de rede e a aplicação o mantém aberto em WAL — escrever por SMB
+      a partir do Windows falha com <code>disk I/O error</code> e,
+      pior, <strong>derruba com erro 500 quem estiver usando o site naquele momento</strong>.
+      Toda escrita em massa vira rota administrativa aqui dentro.
+    </div>
+
+    {# ===== Dependências ===== #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light">
+        <strong>Dependências Python desta instalação</strong>
+        <span class="text-muted small">({{ requisitos|length }} pacotes, de requirements.txt)</span>
+      </div>
+      <div class="card-body">
+        {% if requisitos %}
+        <pre class="bg-light p-2 mb-0" style="max-height:320px; overflow:auto;"><code>{{ requisitos|join('\n') }}</code></pre>
+        {% else %}
+        <p class="small text-muted mb-0">
+          Não consegui ler <code>requirements.txt</code>. Gere de novo com
+          <code>venv/bin/pip freeze &gt; requirements.txt</code>.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+
+  </div></div>
+</div>
+{% endblock %}

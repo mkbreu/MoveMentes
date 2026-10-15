@@ -1,0 +1,688 @@
+/* Movimente-se - Custom Styles */
+
+:root {
+    --primary-color: #C9FF6E;   /* Novo verde para elementos primários */
+    --success-color: #C9FF6E;   /* Novo verde para elementos de sucesso (padronizado) */
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --dark-color: #212529;
+}
+
+/* General Styles */
+body {
+    background-color: #f8f9fa; /* Mantém o fundo cinza claro, conforme solicitado */
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* O CABEÇALHO É ITEM DE UM BODY FLEX (28/08/2026).
+   O `body` é `display: flex; flex-direction: column` desde sempre — é o que
+   segura o rodapé embaixo em página curta. Só que a navbar `sticky-top` é um
+   ITEM desse flex, e item de flex é esticado/encolhido por padrão
+   (`align-items: stretch`, `flex-shrink: 1`). Quando isso acontece, o
+   `position: sticky` passa a calcular a posição sobre uma altura que muda
+   enquanto se rola — e o cabeçalho desce por cima do conteúdo, deixando a
+   tela branca embaixo dele.
+
+   As três linhas abaixo travam cada faixa no seu lugar: o cabeçalho e o rodapé
+   não esticam nem encolhem, e o miolo é quem cresce. Sem isto, mexer no
+   conteúdo da navbar (foi o que aconteceu ao mover o login para lá) muda a
+   altura dela e o defeito aparece. */
+body > nav.navbar {
+    flex: 0 0 auto;
+    align-self: stretch;
+}
+
+body > main {
+    flex: 1 0 auto;
+}
+
+body > footer {
+    flex: 0 0 auto;
+}
+
+/* Âncora não pode parar embaixo do cabeçalho fixo. */
+html {
+    scroll-padding-top: 72px;
+}
+
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.5rem;
+}
+
+.navbar-brand i {
+    margin-right: 0.5rem;
+}
+
+/* Cards */
+.card {
+    border: none;
+    border-radius: 10px;
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.card-header {
+    border-radius: 10px 10px 0 0 !important;
+    font-weight: 600;
+}
+
+/* Forms */
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(201, 255, 110, 0.25); /* Cor ajustada para o novo verde */
+}
+
+/* Buttons */
+.btn {
+    border-radius: 5px;
+    transition: all 0.3s;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Specific button styles using the new green (override Bootstrap defaults) */
+.btn-primary {
+    background-color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    color: #333 !important; /* Cor do texto mais escura para contraste com o verde claro */
+}
+.btn-primary:hover {
+    background-color: #aadb5a !important; /* Um tom um pouco mais escuro para hover */
+    border-color: #aadb5a !important;
+}
+
+.btn-success {
+    background-color: var(--success-color) !important;
+    border-color: var(--success-color) !important;
+    color: #333 !important; /* Cor do texto mais escura para contraste com o verde claro */
+}
+.btn-success:hover {
+    background-color: #aadb5a !important; /* Um tom um pouco mais escuro para hover */
+    border-color: #aadb5a !important;
+}
+
+/* Navbar specific colors for navbar-light on light green background */
+.navbar-light .navbar-brand,
+.navbar-light .navbar-brand i,
+.navbar-light .navbar-nav .nav-link,
+.navbar-light .navbar-nav .nav-link i,
+.navbar-light .dropdown-toggle, /* For dropdown text */
+.navbar-light .dropdown-toggle i, /* For dropdown icon */
+.navbar-light .dropdown-toggle small { /* For small text in dropdown */
+    color: #333 !important; /* Força cor preta para todo o texto e ícones */
+}
+
+.navbar-toggler-icon {
+    /* Altera a cor do SVG do ícone do hamburguer para preto */
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%280, 0, 0, 0.55%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+}
+
+
+/* Footer */
+footer {
+    background-color: #C9FF6E; /* Fundo do rodapé no novo verde */
+    color: #333; /* Cor do texto do rodapé mais escura para contraste */
+    text-align: center;
+    padding: 15px 0;
+    width: 100%;
+    margin-top: auto;
+    box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+}
+
+footer p {
+    margin: 5px 0;
+    font-size: 0.9em;
+    color: #333; /* Garante que o texto dentro do parágrafo do rodapé seja escuro */
+}
+
+.logo-container {
+    text-align: center;
+    margin-top: 40px;
+    margin-bottom: 30px;
+}
+
+.logo-container img {
+    max-width: 250px;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+.qr-code-container {
+    text-align: center;
+    margin-top: 30px;
+    margin-bottom: 30px;
+    padding: 15px;
+}
+
+.qr-code-container h3 {
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.qr-code-container img {
+    max-width: 180px;
+    width: 80%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Password visibility toggle */
+.password-group {
+    position: relative;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 15px;
+    top: 50%; /* Adjusted to be more centered vertically */
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #888;
+    font-size: 18px;
+    z-index: 10; /* Ensure it's above the input field */
+}
+.toggle-password:hover {
+    color: var(--primary-color);
+}
+
+/* Register link color */
+.register-link {
+    color: var(--primary-color); /* Novo verde para o link */
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.3s;
+}
+.register-link:hover {
+    color: #aadb5a; /* Um tom um pouco mais escuro de verde no hover */
+    text-decoration: underline;
+}
+
+/* Adjustments for login form */
+.login-header {
+    background-color: var(--primary-color); /* Novo verde para o cabeçalho do card de login */
+    color: #333; /* Cor do texto do cabeçalho do card mais escura para contraste */
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 600;
+}
+.login-icon {
+    margin-right: 10px;
+    font-size: 24px;
+    color: #333; /* Ícone também mais escuro */
+}
+.login-header h2 {
+    margin: 0;
+}
+
+/* Main container for side-by-side layout (ensure this is in login.html as a wrapper) */
+.main-container {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 30px;
+    padding: 50px 20px;
+    flex-wrap: wrap;
+}
+
+.login-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 400px;
+    width: 100%;
+}
+.support-project-card {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    padding: 30px;
+    max-width: 300px;
+    width: 100%;
+    text-align: center;
+    align-self: flex-start;
+}
+
+/* Responsiveness */
+@media (max-width: 768px) {
+    .main-container {
+        flex-direction: column;
+        align-items: center;
+        padding: 30px 15px;
+    }
+    .login-section,
+    .support-project-card {
+        max-width: 100%;
+    }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Estilos para Accordion de PIX por Cidade */
+.accordion-button {
+    background-color: #f8f9fa;
+    color: #333;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: #e9ecef;
+    color: #0d6efd;
+}
+
+.accordion-button:focus {
+    box-shadow: none;
+    border-color: #dee2e6;
+}
+
+.accordion-button::after {
+    width: 1rem;
+    height: 1rem;
+    background-size: 1rem;
+}
+
+.accordion-body {
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+}
+
+/* Ajustes para inputs de PIX menores nas cidades */
+.input-group-sm .form-control {
+    font-size: 0.875rem;
+}
+
+.input-group-sm .btn {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Melhorar espaçamento do accordion */
+#accordionCidades {
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+}
+
+#accordionCidades .accordion-item {
+    border: none;
+}
+
+/* Ajustes adicionais para o card de apoio */
+.support-project-card h3 {
+    color: #333;
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+}
+
+.support-text {
+    color: #666;
+    font-size: 0.9rem;
+    font-style: italic;
+}
+
+/* Estilos para botões de copiar PIX */
+.btn-outline-primary {
+    color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-outline-primary:hover {
+    color: #fff;
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+/* Feedback visual quando copiado */
+.btn-success {
+    background-color: var(--success-color) !important;
+    border-color: var(--success-color) !important;
+    color: #333 !important;
+}
+
+/* ============================================================
+   CARD QUE E BOTAO  (pedido do dono em 09/08)
+   ------------------------------------------------------------
+   "gostei mais da interface q o card todo e o botao... nao
+   precisa ter a dificuldade de pegar o mouse e encostar no
+   botao abrir".
+   Vale para o painel, para a tela de cada assunto e para o
+   sumario. O alvo de clique passa a ser o card inteiro — o que
+   ajuda ainda mais no celular, onde mirar num botao pequeno
+   dentro do card e o que mais dava erro.
+   ============================================================ */
+.card-botao {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    height: 100%;
+    border-radius: 10px;
+    transition: transform .12s ease, box-shadow .12s ease;
+}
+
+.card-botao:hover,
+.card-botao:focus-visible {
+    transform: translateY(-3px);
+    box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15) !important;
+    color: inherit;
+}
+
+.card-botao:focus-visible {
+    outline: 3px solid #0d6efd;
+    outline-offset: 2px;
+}
+
+.card-botao .card {
+    height: 100%;
+    border-radius: 10px;
+}
+
+/* O icone e a marca do card: e por ele que se acha a tela de
+   relance, antes mesmo de ler o nome. */
+.card-botao .icone-card {
+    font-size: 2rem;
+    line-height: 1;
+    margin-bottom: .6rem;
+    display: block;
+}
+
+/* Tela sem caminho ate ela — o vermelho do sumario. */
+.tela-orfa .card,
+.card-botao.tela-orfa .card {
+    border-color: #dc3545;
+}
+
+/* ============================================================
+   LISTA DE ATLETAS — CABEÇALHO QUE NÃO FOGE (08/09/2026)
+
+   COM 102 ATLETAS, ROLAR A LISTA ERA PERDER AS COLUNAS. Quem descia dez
+   linhas já não sabia mais qual coluna era "Nome no ranking" e qual era
+   "Strava ID" — e as duas são texto parecido.
+
+   POR QUE NÃO BASTA `position: sticky` NO `thead`:
+   o `.table-responsive` do Bootstrap tem `overflow-x: auto`, e overflow num
+   eixo cria contexto de rolagem nos DOIS. Com isso o `thead` gruda no topo
+   DESSE container — que não rola, porque quem rola é a página. Resultado:
+   sticky que não gruda em lugar nenhum, o defeito clássico e silencioso.
+
+   A SAÍDA É INVERTER: em vez de lutar contra o contexto de rolagem, dar
+   altura a ele. A área da tabela ganha teto e passa a rolar por dentro;
+   o `thead` gruda no topo dela e fica sempre visível. De quebra, título,
+   busca e botões param de sair da tela, porque a página quase não rola.
+   ============================================================ */
+/* ---- O TOPO INTEIRO CONGELA, NÃO SÓ O CABEÇALHO DA TABELA ----
+   Congelar só o `thead` resolveu as colunas e deixou outro buraco: ao rolar,
+   os botões "Atualizar fotos/nomes" e a busca saíam da tela, e são justamente
+   eles que a pessoa precisa alcançar de qualquer ponto da lista de 102 nomes.
+
+   `--altura-navbar` é MEDIDA pelo `main.js` e republicada quando a janela muda
+   de tamanho ou o menu do celular abre. Número fixo erraria: a navbar tem
+   ~56px numa janela larga e 102px numa estreita, onde o menu quebra em duas
+   linhas. O 72px do fallback só vale se o script não rodar. */
+.topo-atletas {
+    position: sticky;
+    top: var(--altura-navbar, 72px);
+    z-index: 5;                 /* acima da tabela (3), abaixo da navbar (1030) */
+    background-color: #f8f9fa;  /* o mesmo do `body`: sem fundo opaco, as linhas
+                                   da lista aparecem por baixo do bloco */
+    padding-top: .35rem;
+}
+
+/* DUAS LINHAS DE TOPO, NÃO TRÊS (pedido do dono, 08/09). Antes o bloco tomava
+   uma faixa alta da tela e ainda empurrava a lista para baixo. Agora: linha 1
+   título + botões, linha 2 busca + arquivados, linha 3 já é o cabeçalho da
+   tabela. A folga entre elas encolhe; o tamanho dos botões, não. */
+.topo-atletas .cabecalho-atletas {
+    margin-bottom: .4rem !important;
+}
+.topo-atletas .filtro-atletas {
+    margin-bottom: .4rem !important;
+}
+.topo-atletas .cabecalho-atletas h4 {
+    font-size: 1.15rem;
+}
+
+.tabela-atletas {
+    /* O teto é o que sobra da tela depois do cabeçalho do site e da faixa de
+       busca. `dvh` acompanha a barra do navegador no celular, que aparece e
+       some ao rolar; `vh` sozinho deixaria um pedaço da lista escondido. */
+    max-height: calc(100dvh - 16rem);
+    overflow: auto;
+}
+
+.tabela-atletas thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    /* Fundo OPACO, sempre: `table-light` é semitransparente em alguns temas, e
+       linha passando por baixo de cabeçalho translúcido fica ilegível. */
+    background-color: #f8f9fa;
+    box-shadow: inset 0 -1px 0 #dee2e6;   /* a borda de baixo não acompanha o
+                                             sticky; a sombra faz o papel dela */
+}
+
+/* ---- LINHAS FINAS, E CADA UMA NUMA LINHA SÓ ----
+   Com 102 nomes, o que decide se a lista é útil é quantos cabem na tela. As
+   células vinham com o respiro padrão do Bootstrap e o texto quebrava em duas
+   linhas — uma tabela de 8 colunas em tela estreita vira um bloco alto e
+   confuso. `nowrap` mantém uma linha por atleta; o que não couber é cortado
+   com reticências, que é melhor que empurrar a linha de baixo. */
+.tabela-atletas td,
+.tabela-atletas th {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-top: .35rem;
+    padding-bottom: .35rem;
+}
+
+/* A coluna do nome pode crescer; as outras ficam no tamanho do conteúdo. */
+.tabela-atletas td.fw-semibold {
+    max-width: 16rem;
+}
+
+/* ---- CELULAR: o mesmo conteúdo, sem tomar meia tela ----
+   No telefone o bloco título + botões + busca comia boa parte da altura útil.
+   Aqui ele encolhe no VERTICAL apenas: os alvos de toque continuam com
+   tamanho de dedo, e cada item mantém o próprio espaço — nada invade nada. */
+@media (max-width: 575.98px) {
+    /* `nowrap` NAS DUAS FAIXAS: é o que garante as 2 linhas. Com `wrap`, o
+       título ia para uma linha e os botões para outra; a busca ocupava a
+       terceira e o "Mostrar arquivados" a quarta — 4 faixas de cabeçalho numa
+       tela de 812 px. Medido: título + 2 botões + contagem somam ~330 px, e
+       cabem nos 343 disponíveis. */
+    .cabecalho-atletas {
+        flex-wrap: nowrap !important;
+        column-gap: .35rem;
+        margin-bottom: .35rem !important;
+    }
+    .filtro-atletas {
+        flex-wrap: nowrap !important;
+    }
+    /* DUAS LINHAS, NÃO QUATRO. Antes o topo virava título / botões / busca /
+       "mostrar arquivados", cada um na sua faixa — 4 linhas só de cabeçalho
+       numa tela de 812 px. Agora: linha 1 = título + botões + contagem,
+       linha 2 = busca + arquivados. */
+    /* O TÍTULO CEDE ESPAÇO, EM VEZ DE A FAIXA ESTOURAR. Com `nowrap` e o
+       título rígido, a faixa media 395 px numa tela de 375 e a PÁGINA passava
+       a rolar de lado — trocar rolagem na tabela por rolagem na página é
+       piorar. `min-width: 0` deixa o item flex encolher abaixo do conteúdo, e
+       o que sobra do título vira reticências. */
+    .cabecalho-atletas h4 {
+        font-size: .95rem;
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    /* O grupo dos botões também precisa poder encolher, senão ele é quem
+       empurra o badge para fora da tela. */
+    .cabecalho-atletas > div {
+        min-width: 0;
+    }
+    /* A busca ocupa o que sobrar em vez de reservar 22rem e empurrar o
+       "Mostrar arquivados" para a linha de baixo. `min-width: 0` é o que
+       permite um item flex encolher abaixo do conteúdo dele. */
+    .filtro-atletas #buscarAtleta {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: none !important;
+        font-size: .85rem;
+        padding-top: .25rem;
+        padding-bottom: .25rem;
+    }
+    .filtro-atletas .form-check {
+        flex: 0 0 auto;
+        margin-left: .5rem !important;
+    }
+    .filtro-atletas .form-check-label {
+        font-size: .75rem;
+    }
+    /* Botões mais baixos, mas ainda com 38px de alvo — abaixo disso erra o
+       toque, e errar o toque em "Atualizar fotos" custa uma rodada no Strava.
+       `nowrap` porque sem ele "Atualizar fotos" quebra em duas linhas e o
+       bloco dobra de altura — medido na tela de 375 px. */
+    .cabecalho-atletas .btn {
+        padding-top: .3rem;
+        padding-bottom: .3rem;
+        min-height: 38px;
+        white-space: nowrap;
+        font-size: .8rem;
+    }
+    /* A contagem vira texto comum: em `fs-6` ela competia em tamanho com o
+       título e empurrava os botões para a linha de baixo. */
+    /* Medido: a faixa fechava em 376 px numa tela de 375 — UM pixel, e um
+       pixel basta para a página inteira ganhar rolagem lateral. */
+    .cabecalho-atletas .badge {
+        font-size: .7rem !important;
+        padding: .25rem .3rem;
+        flex: 0 0 auto;
+    }
+    .filtro-atletas {
+        row-gap: .4rem;
+        margin-bottom: .5rem !important;
+    }
+    .filtro-atletas #buscarAtleta {
+        max-width: 100% !important;
+    }
+    /* ---- COLUNAS QUE SOMEM NO CELULAR ----
+       O problema não era a tabela ser alta, era ela ser LARGA: 8 colunas em
+       375 px obrigam a rolar de lado, e o que fica escondido do lado direito é
+       justamente a coluna de Ações — a única em que se clica. Some o que a
+       tela não precisa decidir: Cidade (a lista já vem filtrada), Strava ID
+       (número técnico) e Desde. Ficam foto, Nome, Nome no ranking e Ações,
+       que cabem sem rolagem horizontal. Nada é perdido: no computador tudo
+       volta. */
+    .col-secundaria {
+        display: none !important;
+    }
+
+    /* Linhas ainda mais finas no telefone, onde cada pixel de altura conta. */
+    .tabela-atletas td,
+    .tabela-atletas th {
+        padding-top: .3rem;
+        padding-bottom: .3rem;
+        font-size: .85rem;
+    }
+    .tabela-atletas td.fw-semibold {
+        max-width: 9rem;
+    }
+    /* A foto encolhe junto — 36px por linha somam muito em 100 linhas. */
+    .tabela-atletas td img,
+    .tabela-atletas td > div[style*="border-radius:50%"] {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: .8rem !important;
+    }
+    /* Botões de ação em tamanho de dedo, mas sem o texto que estica a coluna:
+       o ícone continua dizendo o que cada um faz. */
+    .tabela-atletas .btn {
+        padding: .2rem .4rem;
+        font-size: .75rem;
+    }
+
+    /* ---- CABER SEM ROLAR DE LADO: A CONTA ----
+       Medido em 375 px: o conteúdo pedia 477 px para 343 disponíveis — 134 px
+       a mais, e o que ficava escondido à direita era a coluna de Ações, a
+       única em que se clica. Em vez de esconder mais uma coluna de conteúdo,
+       os 134 px saem de onde não custam informação nenhuma. */
+
+    /* 1) Respiro lateral menor: 5 colunas x 2 lados, o maior ganho isolado. */
+    .tabela-atletas td,
+    .tabela-atletas th {
+        padding-left: .35rem;
+        padding-right: .35rem;
+    }
+
+    /* 2) O rótulo dos botões sai; o ícone fica e continua dizendo o que faz. */
+    .tabela-atletas .rotulo-acao {
+        display: none;
+    }
+
+    /* 3) QUEM CORTA É O APELIDO, NÃO O NOME (pedido do dono, 08/09).
+          As duas colunas juntas têm ~194 px para dividir. A primeira versão
+          repartia meio a meio e cortava o nome — errado: o nome é como a
+          pessoa é procurada na lista, e nome cortado obriga a abrir a ficha
+          para saber de quem se trata. O apelido é conferência, não busca:
+          cortado, ainda dá para reconhecer. */
+    .tabela-atletas td.fw-semibold {
+        max-width: 6rem;
+    }
+    /* A coluna do apelido. `:not(.col-secundaria)` porque as outras `td.small`
+       (Cidade, Desde) já sumiram no celular — sem isso a regra tentaria
+       encolher colunas que nem estão na tela. */
+    .tabela-atletas td.small:not(.col-secundaria) {
+        max-width: 3.5rem;
+    }
+    /* O badge do apelido precisa cortar junto: sem isto ele mantém a largura
+       do texto e estica a coluna que acabamos de limitar. */
+    .tabela-atletas td.small:not(.col-secundaria) .badge {
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: bottom;
+    }
+    /* O cabeçalho "Nome no ranking" é mais largo que o conteúdo dele e sozinho
+       esticava a coluna inteira. */
+    .tabela-atletas thead th {
+        max-width: 6.5rem;
+    }
+
+    /* Sobra mais tela para a lista, que é o que a pessoa veio ver. */
+    .tabela-atletas {
+        max-height: calc(100dvh - 11rem);
+    }
+}

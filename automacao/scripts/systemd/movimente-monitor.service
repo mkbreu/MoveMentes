@@ -1,0 +1,13 @@
+[Unit]
+Description=Movimente-se — checagem de saude (silencio absoluto se tudo ok)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=USUARIO
+WorkingDirectory=/home/USUARIO/movimente-automacao
+ExecStart=/home/USUARIO/movimente-automacao/scripts/executar.sh --monitor
+TimeoutStartSec=600
+StandardOutput=journal
+StandardError=journal

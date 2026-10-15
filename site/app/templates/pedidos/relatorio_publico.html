@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "admin/_caixa_macros.html" import saldo, faixa_saldo %}
+{% block title %}Relatório — {{ pedido.cidade }} — MoveMentes{% endblock %}
+
+{% block content %}
+<style>
+  .rp-folha { max-width: 1000px; margin: 0 auto; }
+  .rp-cabeca { border-bottom: 3px solid #2f4a1f; padding-bottom: .8rem; margin-bottom: 1.2rem; }
+  .rp-marca { font-size: 1.5rem; font-weight: 700; color: #2f4a1f; }
+  .rp-marca span { color: #4a7328; }
+  .rp-meta { font-size: .82rem; color: #6c757d; }
+  .rp-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  @media print {
+    nav.navbar, body > footer, .rp-nao-imprime, .alert { display: none !important; }
+    body { background: #fff !important; }
+    main.container, .rp-folha { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+  }
+</style>
+
+<div class="rp-folha">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 rp-nao-imprime">
+    <span class="small text-muted"><i class="fas fa-clock"></i> Este link vale até {{ pedido.expira_em.strftime('%d/%m/%Y') }}.</span>
+    <button class="btn btn-sm btn-success" onclick="window.print()"><i class="fas fa-print"></i> Imprimir ou salvar em PDF</button>
+  </div>
+
+  <div class="rp-cabeca">
+    <div class="rp-marca">Move<span>Mentes</span></div>
+    <div class="rp-meta">Mover o corpo para mover a mente &middot; {{ pedido.cidade }}</div>
+    <div class="h5 mt-2 mb-0">Relatório completo — fluxo de caixa</div>
+    <div class="rp-meta">
+      Período: {{ pedido.periodo_de.strftime('%d/%m/%Y') }} a {{ pedido.periodo_ate.strftime('%d/%m/%Y') }}
+      &middot; gerado em {{ gerado_em.strftime('%d/%m/%Y às %H:%M') }}
+    </div>
+  </div>
+
+  {{ faixa_saldo(periodo) }}
+
+  <table class="table table-sm">
+    <thead>
+      <tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Documento</th>
+          <th>Comprovante</th><th class="rp-num">Valor</th><th class="rp-num">Saldo</th></tr>
+    </thead>
+    <tbody>
+      <tr class="table-light">
+        <td colspan="6"><strong>Saldo que veio de antes</strong></td>
+        <td class="rp-num">{{ saldo(anterior) }}</td>
+      </tr>
+      {% for it in itens %}
+      {% set l = it.linha %}
+      <tr>
+        <td>{{ l.data.strftime('%d/%m/%Y') }}</td>
+        <td>{{ rotulo_categoria.get(l.categoria, l.categoria) }}</td>
+        <td>{{ l.descricao }}{% if l.contraparte %}<span class="d-block text-muted small">{{ l.contraparte }}</span>{% endif %}</td>
+        <td>{{ documento(l) }}</td>
+        <td>{% if l.anexo_path %}<a href="{{ url_for('pedidos.comprovante_do_relatorio', token=pedido.token, lid=l.id) }}" target="_blank" rel="noopener">{{ 'Recebimento' if l.tipo == 'entrada' else 'Pagamento' }}</a>{% else %}—{% endif %}</td>
+        <td class="rp-num">{{ saldo(it.valor, forte=False) }}</td>
+        <td class="rp-num">{{ saldo(it.saldo, forte=False) }}</td>
+      </tr>
+      {% endfor %}
+      {% if not itens %}
+      <tr><td colspan="7" class="text-center text-muted py-3">Nenhum lançamento no período.</td></tr>
+      {% endif %}
+    </tbody>
+    <tfoot>
+      <tr class="table-light"><td colspan="6" class="text-end"><strong>Saldo consolidado em {{ pedido.periodo_ate.strftime('%d/%m/%Y') }}</strong></td>
+          <td class="rp-num">{{ saldo(periodo.saldo_final) }}</td></tr>
+    </tfoot>
+  </table>
+</div>
+{% endblock %}

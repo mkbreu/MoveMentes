@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Etiquetas {{ mes_nome }}/{{ ano }} — {{ cidade }}</title>
+<style>
+  /* PAPEL CARTA (215,9 × 279,4 mm) — NAO A4, e as medidas sao os PARAMETROS
+     OFICIAIS da Pimaco, nao conta feita aqui.
+       margem superior 12,7 mm · margem esquerda 14,5 mm
+       passo horizontal 47,5 mm -> ha 3,05 mm de VAO entre colunas
+       passo vertical = a altura da etiqueta -> sem vao entre linhas
+     Duas versoes erradas antes desta: A4 (tudo 8,8 mm baixo) e depois grade
+     centralizada com colunas coladas (a 4a coluna caia 9 mm fora do adesivo).
+     Nao voltar a calcular margem: o fabricante publica, e e ele quem manda. */
+  @page { size: {{ modelo.papel_largura }}mm {{ modelo.papel_altura }}mm; margin: 0; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f2f2f2;
+  }
+  .folha {
+    width: {{ modelo.papel_largura }}mm; height: {{ modelo.papel_altura }}mm;
+    /* topo · direita(livre) · baixo(livre) · esquerda — as margens da direita e
+       de baixo sobram sozinhas da grade; cravá-las brigaria com o passo. */
+    padding: {{ modelo.margem_topo }}mm 0 0 {{ modelo.margem_esquerda }}mm;
+    background: #fff;
+    margin: 8mm auto;
+    box-shadow: 0 0 6px rgba(0,0,0,.2);
+    display: grid;
+    grid-template-columns: repeat({{ modelo.colunas }}, {{ modelo.largura }}mm);
+    grid-template-rows: repeat({{ modelo.linhas }}, {{ modelo.altura }}mm);
+    column-gap: {{ modelo.vao_coluna }}mm;   /* passo {{ modelo.passo_horizontal }} − etiqueta {{ modelo.largura }} */
+    row-gap: 0;
+    justify-content: start;
+    align-content: start;
+    page-break-after: always;
+  }
+  .etiqueta {
+    width: {{ modelo.largura }}mm; height: {{ modelo.altura }}mm;
+    padding: 0.8mm 1.6mm;
+    overflow: hidden;
+    display: flex; flex-direction: column; justify-content: center;
+    line-height: 1.15;
+  }
+  .nome { font-size: {{ modelo.fonte_nome }}pt; font-weight: 700; white-space: nowrap;
+          overflow: hidden; text-overflow: ellipsis; }
+  .detalhe { font-size: {{ modelo.fonte_detalhe }}pt; color: #333; white-space: nowrap;
+             overflow: hidden; text-overflow: ellipsis; }
+  .vazia { }
+
+  .barra {
+    max-width: {{ modelo.papel_largura }}mm; margin: 8mm auto 0;
+    padding: 0 {{ modelo.margem_esquerda }}mm;
+    font-family: Arial, sans-serif; font-size: 12px; color: #333;
+  }
+  .barra button { padding: 6px 14px; font-size: 13px; cursor: pointer; }
+  @media print {
+    body { background: #fff; }
+    .barra { display: none; }
+    .folha { margin: 0; box-shadow: none; }
+  }
+  /* Linhas de conferência: ajudam a alinhar a impressora na primeira folha.
+     Somem na impressão. */
+  @media screen {
+    .etiqueta { outline: 0.2mm dashed #ccc; outline-offset: -0.2mm; }
+  }
+</style>
+</head>
+<body>
+
+<div class="barra">
+  <p>
+    <strong>{{ total }}</strong> etiqueta(s) de {{ mes_nome }}/{{ ano }} — {{ cidade }}.
+    Modelo <strong>{{ modelo.nome }}</strong>.
+  </p>
+  <p>
+    Na hora de imprimir, confira duas coisas — são as que fazem o nome sair
+    fora do adesivo:
+    <br>1. papel <strong>Carta</strong> (não A4);
+    <br>2. escala <strong>100%</strong>, com "ajustar à página" <strong>desligado</strong>.
+    <br>Faça a primeira folha numa sulfite comum e ponha sobre a cartela contra
+    a luz: se bater, pode imprimir na etiqueta.
+  </p>
+  <button onclick="window.print()">Imprimir</button>
+</div>
+
+{% for folha in folhas %}
+<div class="folha">
+  {% for item in folha %}
+    {% if item %}
+    <div class="etiqueta">
+      <div class="nome">{{ item.nome }}</div>
+      <div class="detalhe">{{ mes_nome }}/{{ ano }} · {{ '%.1f'|format(item.km) }} km</div>
+      <div class="detalhe">{{ item.modalidades|join(' + ') }}</div>
+    </div>
+    {% else %}
+    <div class="etiqueta vazia"></div>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endfor %}
+
+</body>
+</html>

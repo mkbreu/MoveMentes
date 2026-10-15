@@ -1,0 +1,13 @@
+[Unit]
+Description=Movimente-se — ranking 2x por dia (manha e tarde)
+
+[Timer]
+# A maquina liga so para publicar. Persistent=true faz rodar assim que ela
+# voltar, caso o horario tenha passado com o Dell desligado.
+OnCalendar=*-*-* 10:30:00
+OnCalendar=*-*-* 22:00:00
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

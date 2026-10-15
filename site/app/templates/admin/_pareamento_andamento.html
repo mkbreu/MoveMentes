@@ -1,0 +1,79 @@
+{#
+  O ANDAMENTO DE UM PEDIDO, DESENHADO NO SERVIDOR (P-75).
+
+  Existe para a tela já nascer preenchida: sem isto, quem abre a página fica
+  três segundos olhando para o vazio até a primeira resposta do JavaScript — e
+  quem estiver com o JavaScript bloqueado nunca veria nada. O mesmo desenho é
+  refeito pelo `whatsapp_sessao.html` a cada atualização.
+
+  Espera a variável `p` (o pedido, vindo de `whatsapp.andamento_da_cidade`).
+#}
+{# O BLOCO "Conectado. Não precisa fazer nada" SAIU DAQUI (19/08/2026).
+   Ele afirmava sobre o ESTADO da sessão a partir do desfecho do PEDIDO, e por
+   isso continuava verde depois de a sessão ser apagada. Quem responde "como
+   está agora" é o `_estado_sessao.html`, logo acima deste bloco. Aqui ficou só
+   o que é história do pedido: interrompido, falhou, ou o código a digitar. #}
+{% if p.situacao == 'cancelado' %}
+  <div class="alert alert-secondary py-2 mb-2 small">
+    <i class="fas fa-ban me-1"></i>Interrompido. Pode conectar de novo quando quiser.
+  </div>
+{% elif p.situacao == 'falhou' and p.motivo %}
+  <div class="alert alert-danger py-2 mb-2 small">
+    <strong>{{ p.motivo.o_que_houve }}</strong>
+    <div class="mt-1">{{ p.motivo.o_que_fazer }}</div>
+    {% if p.motivo.detalhe %}
+    <div class="mt-1 text-muted" style="font-size:.75rem;">
+      detalhe da máquina: {{ p.motivo.detalhe }}
+    </div>
+    {% endif %}
+  </div>
+{% elif p.codigo %}
+  <div class="alert alert-success py-2 mb-2">
+    <div class="small">Digite este código no celular (vale cerca de 1 minuto):</div>
+    <div class="text-center my-2" style="font-size:1.8rem;font-weight:700;letter-spacing:.3rem;">
+      {{ p.codigo }}
+    </div>
+    <div class="small">
+      WhatsApp → Aparelhos conectados → Conectar um aparelho →
+      <em>Conectar com número de telefone</em>.
+    </div>
+  </div>
+{% endif %}
+
+{# OS PASSOS SEMPRE APARECEM: é a resposta de "até onde chegou?" — e é
+   justamente ela que se perdia quando um passo durava um segundo. #}
+<div class="d-flex flex-column gap-1 mb-2">
+  {% for passo in p.passos %}
+  <div class="d-flex align-items-center gap-2 {{ 'fw-bold' if passo.estado == 'agora' else ('text-muted' if passo.estado == 'feito' else 'text-muted opacity-50') }}"
+       style="font-size:.85rem;">
+    {% if passo.estado == 'feito' %}<i class="fas fa-check-circle text-success"></i>
+    {% elif passo.estado == 'agora' %}<span class="spinner-border spinner-border-sm text-primary"></span>
+    {% else %}<i class="far fa-circle text-muted"></i>{% endif %}
+    <span>{{ passo.titulo }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+{% if p.em_curso %}
+  <div class="small text-muted">{{ p.etapa_titulo }} — há {{ p.ha_quanto_tempo }}.</div>
+  {# AVISO EMBAIXO, NUNCA NO LUGAR DO STATUS. #}
+  {% if p.passou_do_tempo %}
+  <div class="alert alert-warning py-2 mt-2 mb-0 small">
+    Este passo costuma levar até {{ p.limite_humano }} e já passou disso.
+    Dá para esperar mais um pouco ou apertar <strong>Parar</strong> e tentar de novo.
+  </div>
+  {% endif %}
+{% endif %}
+
+{% if p.historico %}
+<details class="mt-2">
+  <summary class="small text-muted" style="cursor:pointer;">
+    O que já aconteceu <span class="text-muted">(clique para abrir e fechar)</span>
+  </summary>
+  <ul class="small text-muted mt-2 mb-0 ps-3">
+    {% for h in p.historico %}
+    <li>{{ h.hora }} — {{ h.titulo }}{% if h.mensagem %}: {{ h.mensagem }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+</details>
+{% endif %}

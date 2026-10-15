@@ -1,0 +1,67 @@
+{% extends "admin/_relatorio_base.html" %}
+{% from "admin/_caixa_macros.html" import reais, saldo, custo, faixa_saldo %}
+{% block title %}Despesas por rubrica — MoveMentes{% endblock %}
+{% block chave_atalho %}despesas{% endblock %}
+{% block titulo_relatorio %}Despesas por rubrica do orçamento{% endblock %}
+{% block botoes_extra %}
+<a class="btn btn-sm btn-outline-success" href="{{ url_for('caixa.planilha', de=de.isoformat(), ate=ate.isoformat()) }}">
+  <i class="fas fa-file-excel"></i> Planilha (.xlsx)
+</a>
+{% endblock %}
+
+{% block corpo %}
+{{ faixa_saldo(periodo) }}
+
+<p class="small">
+  Total aplicado: <strong>{{ custo(grupos | sum(attribute='total')) }}</strong>.
+</p>
+
+{% for g in grupos %}
+<h2 class="h6 mt-3 mb-1">{{ g.rubrica }} — {{ custo(g.total) }}</h2>
+<table class="table table-sm mb-3">
+  <thead><tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Fornecedor</th>
+             <th>Documento</th><th>Comprovante</th><th class="rel-num">Valor</th></tr></thead>
+  <tbody>
+    {% for l in g.linhas %}
+    <tr>
+      <td>{{ l.data.strftime('%d/%m/%Y') }}</td>
+      <td>{{ rotulo_categoria.get(l.categoria, l.categoria) }}</td>
+      <td>{{ l.descricao }}</td>
+      <td>{{ l.contraparte or '—' }}</td>
+      <td>{{ documento(l) }}</td>
+      <td>{% if l.anexo_path %}<a href="{{ link_publico(l) }}">{{ rotulo_comprovante(l) }}</a>{% else %}—{% endif %}</td>
+      <td class="rel-num">{{ custo(l.valor) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+{% if not grupos %}
+<p class="text-muted small">Nenhuma despesa lançada no período.</p>
+{% endif %}
+
+{% if entradas %}
+<h2 class="h6 mt-4 mb-1">Recursos recebidos no período — {{ saldo(periodo.entradas, forte=False) }}</h2>
+<table class="table table-sm">
+  <thead><tr><th>Data</th><th>Origem</th><th>Descrição</th>
+             <th>Documento</th><th>Comprovante</th><th class="rel-num">Valor</th></tr></thead>
+  <tbody>
+    {% for l in entradas %}
+    <tr>
+      <td>{{ l.data.strftime('%d/%m/%Y') }}</td>
+      <td>{{ l.contraparte or '—' }}</td>
+      <td>{{ l.descricao }}</td>
+      <td>{{ documento(l) }}</td>
+      <td>{% if l.anexo_path %}<a href="{{ link_publico(l) }}">{{ rotulo_comprovante(l) }}</a>{% else %}—{% endif %}</td>
+      <td class="rel-num">{{ saldo(l.valor, forte=False) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<p class="rel-meta mt-3">
+  Os comprovantes de cada lançamento ficam arquivados no sistema e podem ser
+  apresentados a pedido.
+</p>
+{% endblock %}

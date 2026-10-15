@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block title %}Backup e restauração - MoveMentes{% endblock %}
+
+{#
+  SAIU DO PAINEL EM 09/08.
+  Este bloco vivia no fim do painel, com 150 linhas de JavaScript junto. Era
+  a razao de o painel nao poder virar so cards. Aqui ele fica inteiro, do
+  jeito que estava — nenhuma linha da logica mudou, so o endereco.
+#}
+
+{% block extra_css %}
+<style>
+    .maintenance-panel .progress { height: 24px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="Onde estou" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Painel</a></li>
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('admin.area', chave='manutencao') }}">Manutenção</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">Backup e restauração</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow-sm border-primary maintenance-panel">
+        <div class="card-header bg-light">
+            <strong><i class="fas fa-tools"></i> Manutenção Master</strong>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">
+                O backup inclui código, templates, static, migrations, banco, logs e todos os uploads
+                (inclusive os ZIPs/TXTs originais do WhatsApp), além do <strong>cofre de segredos</strong>
+                (chave de assinatura e cookie do Strava). Ficam fora apenas cache, temporários, venv e git
+                (o venv é recriável a partir do requirements.txt).
+                <br>
+                <span class="small">
+                    Na restauração o cofre só volta se o servidor estiver sem um — assim uma restauração
+                    de rotina não troca a chave em uso nem desloga ninguém.
+                </span>
+            </p>
+            <input type="hidden" id="maintenanceCsrf" value="{{ csrf_token() }}">
+            <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-outline-primary" id="startBackupBtn">
+                    <i class="fas fa-archive"></i> Fazer Backup Essencial
+                </button>
+                <button type="button" class="btn btn-outline-warning" id="clearCacheBtn">
+                    <i class="fas fa-broom"></i> Limpar Cache Python
+                </button>
+            </div>
+
+            <hr>
+            <h6 class="mb-2"><i class="fas fa-feather-alt text-success"></i> Deixar o sistema enxuto</h6>
+            <p class="text-muted small mb-2">
+                Libera espaço que não serve mais para nada: a <strong>imagem</strong> de mensagens
+                que já foram entregues (o registro do envio continua), itens de fila entregues há
+                mais de 60 dias e acompanhamentos de trabalhos já concluídos.
+                <strong>Não apaga km, atividade, atleta, ranking nem patrocinador</strong>, e não
+                encosta em trabalho que ainda está rodando. Roda sozinha uma vez por dia; este botão
+                é para quando você quiser o resultado agora.
+            </p>
+            <div class="d-grid gap-2 d-md-block mb-3">
+                <button type="button" class="btn btn-outline-success" id="faxinaBtn">
+                    <i class="fas fa-feather-alt"></i> Fazer faxina agora
+                </button>
+            </div>
+
+            <hr>
+            <h6 class="mb-2"><i class="fas fa-history text-danger"></i> Restaurar Backup</h6>
+            <p class="text-muted small mb-2">
+                Restaura <strong>banco de dados, uploads e imagens</strong> a partir de um backup da pasta
+                <code>Backups</code> do servidor. O código da aplicação não é alterado.
+                Após concluir, reinicie o perfil web no DSM.
+            </p>
+            {% if backups %}
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <select id="restoreSelect" class="form-select" style="max-width: 420px;">
+                    {% for bk in backups %}
+                    <option value="{{ bk }}">{{ bk }}</option>
+                    {% endfor %}
+                </select>
+                <button type="button" class="btn btn-outline-danger" id="restoreBtn">
+                    <i class="fas fa-undo"></i> Restaurar
+                </button>
+            </div>
+            {% else %}
+            <p class="text-muted small mb-0">Nenhum backup encontrado na pasta Backups do servidor.</p>
+            {% endif %}
+
+            <div id="maintenanceResult" class="alert mt-3 mb-0" style="display:none;"></div>
+
+            <div id="maintenanceProgress" class="mt-4" style="display:none;">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <strong id="maintenanceTitle">Processando...</strong>
+                    <span id="maintenancePct">0%</span>
+                </div>
+                <div class="progress">
+                    <div id="maintenanceBar"
+                         class="progress-bar progress-bar-striped progress-bar-animated"
+                         role="progressbar"
+                         style="width: 0%;"
+                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
+                <div id="maintenanceMessage" class="small text-muted mt-2">
+                    Aguardando...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    const csrf = document.getElementById('maintenanceCsrf');
+    const backupBtn = document.getElementById('startBackupBtn');
+    const cacheBtn = document.getElementById('clearCacheBtn');
+    const faxinaBtn = document.getElementById('faxinaBtn');
+    const restoreBtn = document.getElementById('restoreBtn');
+    const restoreSelect = document.getElementById('restoreSelect');
+    const progressBox = document.getElementById('maintenanceProgress');
+    const resultBox = document.getElementById('maintenanceResult');
+    const title = document.getElementById('maintenanceTitle');
+    const pctLabel = document.getElementById('maintenancePct');
+    const bar = document.getElementById('maintenanceBar');
+    const message = document.getElementById('maintenanceMessage');
+    let pollTimer = null;
+    let hideTimer = null;
+
+    if (!csrf || !backupBtn || !cacheBtn) {
+        return;
+    }
+
+    function setBusy(isBusy) {
+        backupBtn.disabled = isBusy;
+        cacheBtn.disabled = isBusy;
+        if (faxinaBtn) {
+            faxinaBtn.disabled = isBusy;
+        }
+        if (restoreBtn) {
+            restoreBtn.disabled = isBusy;
+        }
+    }
+
+    function setResult(data) {
+        resultBox.style.display = 'block';
+        resultBox.className = 'alert mt-3 mb-0 ' + (data.ok ? 'alert-success' : 'alert-danger');
+        resultBox.textContent = data.message || (data.ok ? 'Processo concluído.' : 'Processo finalizado com erro.');
+    }
+
+    function updateProgress(data) {
+        const pct = Math.max(0, Math.min(100, Number(data.pct || 0)));
+        bar.style.width = pct + '%';
+        bar.setAttribute('aria-valuenow', pct);
+        pctLabel.textContent = pct + '%';
+        message.textContent = data.message || 'Processando...';
+
+        bar.className = 'progress-bar progress-bar-striped';
+        if (!data.done) {
+            bar.classList.add('progress-bar-animated');
+        }
+        if (data.done && data.ok) {
+            bar.classList.add('bg-success');
+        }
+        if (data.done && data.ok === false) {
+            bar.classList.add('bg-danger');
+        }
+    }
+
+    function finishJob(data) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+        setBusy(false);
+        setResult(data);
+        if (data.ok) {
+            hideTimer = setTimeout(function () {
+                progressBox.style.display = 'none';
+            }, 1400);
+        }
+    }
+
+    // RITMO DA CONSULTA (26/08/2026) — mesmo conserto de importar_atleta.html:
+    // `setInterval` fixo NAO espera a resposta chegar, entao um servidor lento
+    // acumula pedidos ate entupir. Foi assim que o site saiu do ar em 25/08
+    // (ver ERROS.md). Agora so agenda a proxima depois que a atual terminou, e
+    // recua quando a resposta nao vem.
+    var pollIntervalo = 1500;
+    var POLL_NORMAL   = 1500;
+    var POLL_MAXIMO   = 20000;
+
+    function poll(jobId) {
+        var agendar = function () {
+            if (pollTimer === null) return;   // finishJob ja parou o ciclo
+            pollTimer = setTimeout(consultar, pollIntervalo);
+        };
+        var consultar = function () {
+            fetch("{{ url_for('admin.maintenance_status', job_id='__JOB__') }}".replace('__JOB__', jobId), {
+                credentials: 'same-origin'
+            }).then(function (response) {
+                return response.json();
+            }).then(function (data) {
+                pollIntervalo = POLL_NORMAL;   // respondeu: volta ao ritmo de sempre
+                updateProgress(data);
+                if (data.done) {
+                    finishJob(data);
+                }
+            }).catch(function () {
+                finishJob({
+                    ok: false,
+                    done: true,
+                    message: 'Falha ao consultar progresso. O processo pode continuar no servidor.',
+                    pct: 0
+                });
+            }).then(agendar, agendar);
+        };
+        pollTimer = -1;                        // ciclo ativo antes da 1a volta
+        pollIntervalo = POLL_NORMAL;
+        consultar();
+    }
+
+    function startJob(url, label, extraFields) {
+        if (pollTimer) {
+            return;
+        }
+        clearTimeout(hideTimer);
+        setBusy(true);
+        resultBox.style.display = 'none';
+        progressBox.style.display = 'block';
+        title.textContent = label;
+        updateProgress({ pct: 1, message: 'Iniciando...', done: false });
+
+        const fd = new FormData();
+        fd.append('csrf_token', csrf.value);
+        if (extraFields) {
+            Object.keys(extraFields).forEach(function (key) {
+                fd.append(key, extraFields[key]);
+            });
+        }
+        fetch(url, {
+            method: 'POST',
+            body: fd,
+            credentials: 'same-origin'
+        }).then(function (response) {
+            return response.json();
+        }).then(function (data) {
+            if (data.status !== 'ok' || !data.job_id) {
+                throw new Error(data.message || 'Nao foi possivel iniciar.');
+            }
+            poll(data.job_id);
+        }).catch(function (error) {
+            updateProgress({ pct: 0, message: error.message, done: true, ok: false });
+            finishJob({ ok: false, done: true, message: error.message, pct: 0 });
+        });
+    }
+
+    backupBtn.addEventListener('click', function () {
+        startJob("{{ url_for('admin.start_backup') }}", 'Backup essencial');
+    });
+
+    if (faxinaBtn) {
+        faxinaBtn.addEventListener('click', function () {
+            startJob("{{ url_for('admin.start_faxina') }}", 'Deixando o sistema enxuto');
+        });
+    }
+
+    cacheBtn.addEventListener('click', function () {
+        startJob("{{ url_for('admin.start_clear_cache') }}", 'Limpeza de cache');
+    });
+
+    if (restoreBtn && restoreSelect) {
+        restoreBtn.addEventListener('click', function () {
+            const backupName = restoreSelect.value;
+            if (!backupName) {
+                return;
+            }
+            if (!confirm('Restaurar o backup "' + backupName + '"?\n\n' +
+                         'O banco de dados, uploads e imagens ATUAIS serão substituídos ' +
+                         'pelos dados do backup. Esta ação não pode ser desfeita.')) {
+                return;
+            }
+            const typed = prompt('Confirmação final: digite RESTAURAR (em maiúsculas) para prosseguir.');
+            if ((typed || '').trim().toUpperCase() !== 'RESTAURAR') {
+                return;
+            }
+            startJob("{{ url_for('admin.start_restore') }}", 'Restauração de backup', {
+                backup_name: backupName,
+                confirmacao: 'RESTAURAR'
+            });
+        });
+    }
+}());
+</script>
+{% endblock %}

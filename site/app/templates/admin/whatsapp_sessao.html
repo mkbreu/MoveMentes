@@ -1,0 +1,783 @@
+{% extends "base.html" %}
+
+{% block title %}Sessão do WhatsApp - MoveMentes{% endblock %}
+
+{#
+  ESTA TELA FOI REDUZIDA A UMA COISA SÓ (P-75, 14/08/2026).
+
+  Ela tinha duas épocas empilhadas: metade tratava a sessão como UMA POR CIDADE
+  ("passar a usar palmeiropolis", "religar pelo celular" com um número fixo no
+  HTML, "deixar na fila") e metade já tratava como UMA POR PESSOA
+  (`<papel>-<cidade>`). O dono perguntou para que serviam aqueles campos — a
+  resposta honesta era "para nada, e um deles fazia mal": salvar o nome da
+  sessão gravava `palmeiropolis`, FORA do padrão que já é regra.
+
+  Sobrou o que resolve: a tabela de quem publica, com o botão Conectar, o passo
+  a passo ao vivo e o motivo quando falha. Endereço, porta, chave e nome de
+  sessão não se digitam mais — a máquina conta (POST /api/instancias).
+#}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-9 mx-auto">
+        <div class="card shadow mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between" style="background-color: #C9FF6E; color: #1a1a1a;">
+                <h4 class="mb-0"><i class="fab fa-whatsapp me-2"></i>Sessão do WhatsApp</h4>
+                <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-dark">
+                    <i class="fas fa-arrow-left me-1"></i>Voltar
+                </a>
+            </div>
+            <div class="card-body">
+
+                <p class="text-muted">
+                    Aqui você liga o WhatsApp de quem publica <strong>sem ir até o
+                    computador</strong>. Clique em <strong>Conectar</strong> na linha da
+                    pessoa: o sistema acorda a máquina, prepara tudo e manda o
+                    <strong>código de pareamento</strong>. A tela mostra cada passo
+                    enquanto acontece.
+                </p>
+
+                {# ===== A MAQUINA DA AUTOMACAO (regra 21-G) =====
+                   Primeira pergunta de quem abre esta tela porque "nao publicou":
+                   a maquina esta de pe? Desligada e o NORMAL fora do horario —
+                   por isso ela aparece em cinza, nao em vermelho. #}
+                {# ===== TOPO POR CAMADA (18/09/2026, plano A3) =====
+                   Windows · WSL · containers, perguntados ao vivo — sem sessão
+                   aqui (sessão só nos quadros de cada pessoa). #}
+                {% if camadas %}
+                <div class="card mb-4">
+                  <div class="card-body py-3">
+                    <div class="d-flex flex-column gap-2 small">
+                      <div>
+                        <span class="badge bg-{{ 'success' if camadas.windows.ligado else 'secondary' }}">
+                          <i class="fas fa-{{ 'check' if camadas.windows.ligado else 'power-off' }} me-1"></i>
+                          Computador (Windows): {{ 'ligado' if camadas.windows.ligado else 'desligado' }}
+                        </span>
+                        {% if camadas.windows.ip %}<span class="text-muted ms-1">{{ camadas.windows.ip }}</span>{% endif %}
+                      </div>
+                      <div>
+                        <span class="badge bg-{{ 'success' if camadas.wsl.respondendo else ('danger' if camadas.windows.ligado else 'secondary') }}">
+                          <i class="fas fa-{{ 'check' if camadas.wsl.respondendo else ('triangle-exclamation' if camadas.windows.ligado else 'power-off') }} me-1"></i>
+                          WSL: {{ 'ligado e respondendo' if camadas.wsl.respondendo else ('não responde' if camadas.windows.ligado else 'parado') }}
+                        </span>
+                        {% if camadas.wsl.ip %}<span class="text-muted ms-1">{{ camadas.wsl.ip }}</span>{% endif %}
+                      </div>
+                      {% for c in camadas.containers %}
+                      <div>
+                        <span class="badge bg-{{ 'success' if c.operacional else 'secondary' }}">
+                          <i class="fas fa-{{ 'check' if c.operacional else 'circle-stop' }} me-1"></i>
+                          Container {{ c.nome }} ({{ c.cidade }}): {{ 'operacional' if c.operacional else 'parado' }}
+                        </span>
+                        {% if c.porta %}<span class="text-muted ms-1">porta {{ c.porta }}</span>{% endif %}
+                      </div>
+                      {% else %}
+                      <div class="text-muted">Nenhum container registrado.</div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+                {% elif maquina_estado %}
+                <div class="card mb-4 border-{{ {'ligada':'success','quebrada':'danger','desligada':'secondary','sem_endereco':'warning'}.get(maquina_estado.situacao,'secondary') }}">
+                  <div class="card-body py-3">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                      <span class="badge bg-{{ {'ligada':'success','quebrada':'danger','desligada':'secondary','sem_endereco':'warning text-dark'}.get(maquina_estado.situacao,'secondary') }}"
+                            id="maquinaBadge">
+                        <i class="fas fa-{{ {'ligada':'check','quebrada':'triangle-exclamation','desligada':'power-off','sem_endereco':'link-slash'}.get(maquina_estado.situacao,'circle-question') }} me-1"></i>
+                        Máquina da automação: {{ maquina_estado.rotulo }}
+                      </span>
+                      {% if maquina_estado.host %}
+                        <small class="text-muted">{{ maquina_estado.host }}:{{ maquina_estado.porta }}</small>
+                      {% endif %}
+                    </div>
+                    <p class="small text-muted mb-0 mt-2" id="maquinaDetalhe">{{ maquina_estado.detalhe }}</p>
+                  </div>
+                </div>
+                {% endif %}
+
+                {# ===== FAXINA DA CIDADE (18/09/2026, plano A10 + item 5) =====
+                   Só o container e os dados DESTA cidade. O que está bom fica. #}
+                {# 19/09/2026 (item 73): faxina e do master da cidade para cima. #}
+                {% if current_user.is_master %}
+                <details class="mb-4 border rounded p-2" {% if faxina_pedida %}open{% endif %}>
+                  <summary class="small" style="cursor:pointer">
+                    <i class="fas fa-broom me-1"></i><strong>Faxina desta cidade</strong>
+                    — remove só o que está quebrado
+                    {% if faxina_pedida %}<span class="badge bg-warning text-dark ms-1">pedida às {{ faxina_pedida.em[11:16] }}{% if faxina_pedida.entregue_em %}, em execução{% endif %}</span>{% endif %}
+                  </summary>
+                  <div class="small mt-2">
+                    <ul class="mb-2">
+                      <li>Sessão <strong>lendo o grupo</strong>: fica, não é tocada.</li>
+                      <li>Sessão <strong>conectada que não lê</strong>: reinicia uma vez (só se tiver cópia gravada). Voltou a ler? fica. Não voltou? sai.</li>
+                      <li>Sessão <strong>FAILED, sem vínculo ou parada</strong>: sai (vai precisar parear de novo).</li>
+                      <li>Container que <strong>não responde</strong>: é recriado (as sessões voltam da cópia).</li>
+                      <li>Depois: bancos, volumes e perfis <strong>sem dono desta cidade</strong> são apagados.</li>
+                    </ul>
+                    <form method="POST" class="d-flex flex-wrap align-items-center gap-2"
+                          onsubmit="return confirm('Pedir a faxina desta cidade?\n\nO que está quebrado sai; o que está bom fica. Sessão que sair precisa ser pareada de novo.');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="acao" value="faxina_cidade">
+                      <label class="small"><input type="checkbox" name="confirmo" value="1"> entendi o que sai e o que fica</label>
+                      <button class="btn btn-sm btn-outline-danger" {% if faxina_pedida %}disabled{% endif %}>
+                        <i class="fas fa-broom me-1"></i>Fazer a faxina
+                      </button>
+                    </form>
+                    {% if faxina_ultima %}
+                    <div class="mt-2 p-2 bg-light border rounded">
+                      <strong>Última faxina ({{ faxina_ultima.em }}):</strong>
+                      <ul class="mb-0">{% for l in faxina_ultima.linhas %}<li>{{ l }}</li>{% endfor %}</ul>
+                    </div>
+                    {% endif %}
+                  </div>
+                </details>
+                {% endif %}
+
+                {# ===== VERSÕES (19/09/2026, plano item 67) — só o master supremo =====
+                   Lido pela máquina 1x por dia. A troca é só do WAHA; Docker,
+                   Debian e WSL só mostram a versão (trocar exige recriar tudo). #}
+                {% if current_user.is_supremo %}
+                <details class="mb-4 border rounded p-2" {% if versao_pedida %}open{% endif %}>
+                  <summary class="small" style="cursor:pointer">
+                    <i class="fas fa-code-branch me-1"></i><strong>Versões</strong>
+                    {% if versoes %} — WhatsApp (WAHA) {{ versoes.waha.instalada|replace('latest-','') }}{% endif %}
+                    {% if versao_pedida %}<span class="badge bg-warning text-dark ms-1">troca pedida para {{ versao_pedida.tag|replace('latest-','') }}</span>{% endif %}
+                  </summary>
+                  <div class="small mt-2">
+                  {% if not versoes %}
+                    <p class="text-muted mb-0">A máquina ainda não contou as versões (conta 1 vez por dia, na passada da fila).</p>
+                  {% else %}
+                    {% set pubs = versoes.waha.publicadas or [] %}
+                    {% set inst = versoes.waha.instalada %}
+                    {% set nomes = pubs|map('first')|list %}
+                    {% set pos = nomes.index(inst) if inst in nomes else -1 %}
+                    <table class="table table-sm mb-2">
+                      <tr><td>WhatsApp (WAHA)</td><td><strong>{{ inst|replace('latest-','') }}</strong></td>
+                          <td>{% if pos >= 0 %}{{ pos }} à frente · {{ nomes|length - pos - 1 }} atrás{% endif %}</td></tr>
+                      <tr><td>Motor WebJS</td><td>{{ versoes.motor_webjs.instalada }}</td><td class="text-muted">vem dentro do WAHA</td></tr>
+                      <tr><td>Docker</td><td>{{ versoes.docker.instalada }}</td><td class="text-muted" rowspan="3">trocar estes exige recriar a automação inteira e parear de novo — só em último caso</td></tr>
+                      <tr><td>Debian</td><td>{{ versoes.debian.instalada }}</td></tr>
+                      <tr><td>WSL (kernel)</td><td>{{ versoes.wsl_kernel.instalada }}</td></tr>
+                    </table>
+                    <div class="text-muted mb-2">Lido em {{ versoes.coletado_em|replace('T',' ') }}{% if versoes.correcao_logo_montada %} · correção da logo montada{% endif %}.</div>
+                    <form method="POST" class="d-flex flex-wrap align-items-center gap-2"
+                          onsubmit="return confirm('Trocar a versão do WhatsApp (WAHA)?\n\nA máquina grava a cópia das sessões, troca a versão e recria só o WAHA. As sessões costumam voltar sozinhas; se alguma não voltar, é clicar em Conectar.');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="acao" value="trocar_versao_waha">
+                      <select name="tag" class="form-select form-select-sm" style="width:auto;">
+                        {% for t, d in pubs %}
+                        <option value="{{ t }}" {% if t == inst %}selected{% endif %}>{{ t|replace('latest-','') }} ({{ d[8:10] }}/{{ d[5:7] }}/{{ d[0:4] }}){% if t == inst %} — instalada{% endif %}</option>
+                        {% endfor %}
+                        <option value="latest">latest — a mais nova, sem data fixa (último recurso)</option>
+                      </select>
+                      <label class="small"><input type="checkbox" name="ciente" value="1"> tenho ciência (recria o WAHA)</label>
+                      <button class="btn btn-sm btn-outline-danger" {% if versao_pedida %}disabled{% endif %}>Trocar a versão</button>
+                    </form>
+                  {% endif %}
+                  {% if versao_ultima %}
+                    <div class="mt-2 p-2 bg-light border rounded">
+                      <strong>Última troca ({{ versao_ultima.em }}):</strong>
+                      <ul class="mb-0">{% for l in versao_ultima.linhas %}<li>{{ l }}</li>{% endfor %}</ul>
+                    </div>
+                  {% endif %}
+                  </div>
+                </details>
+                {% endif %}
+
+                {# ===== CONECTAR O WHATSAPP DE CADA ADMIN ===== #}
+                <div class="card border-success mb-4">
+                  <div class="card-header bg-success text-white py-2 d-flex justify-content-between align-items-center">
+                    <strong><i class="fab fa-whatsapp me-1"></i>WhatsApp de quem publica</strong>
+                    <small id="pulso" class="d-none"><i class="fas fa-circle-notch fa-spin me-1"></i>acompanhando</small>
+                  </div>
+                  <div class="card-body">
+                    <p class="small text-muted">
+                      Cada pessoa que publica tem o próprio WhatsApp ligado ao sistema —
+                      assim o admin de uma cidade nunca esbarra na conversa da outra.
+                      O <strong>principal</strong> é quem publica; o <strong>suplente</strong>
+                      entra quando o principal cai e é por ele que os avisos de falha chegam.
+                    </p>
+
+                    {% if not equipe %}
+                    <div class="alert alert-warning py-2 small mb-0">
+                      Ninguém está marcado para publicar ainda. Defina a ordem em
+                      <a href="{{ url_for('admin.postagem') }}">Quem publica no grupo</a>
+                      e volte aqui.
+                    </div>
+                    {% else %}
+                    {% for m in equipe %}
+                    {% set p = m.pedido %}
+                    <div class="border rounded p-3 mb-3" data-linha="{{ m.usuario_id }}">
+                      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                        <div>
+                          <strong>{{ m.nome }}</strong>
+                          <div class="small text-muted">{{ m.email }}</div>
+                          <div class="small text-muted">
+                            {{ m.telefone|telefone if m.telefone else 'sem telefone cadastrado' }}
+                            · sessão <code>{{ m.sessao_prevista }}</code>
+                          </div>
+                        </div>
+
+                        {# QUEM É O SUPLENTE SE DEFINE AQUI (pedido do dono).
+                           É o mesmo campo da tela "Quem publica no grupo": mudou
+                           aqui, mudou em todo lugar que depende dele. #}
+                        <form method="POST" class="d-flex align-items-center gap-1">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                          <input type="hidden" name="acao" value="definir_papel">
+                          <input type="hidden" name="usuario_id" value="{{ m.usuario_id }}">
+                          <select name="ordem" class="form-select form-select-sm" style="width:auto;"
+                                  onchange="this.form.submit()">
+                            <option value="1" {% if m.ordem == 1 %}selected{% endif %}>principal</option>
+                            <option value="2" {% if m.ordem == 2 %}selected{% endif %}>suplente</option>
+                            <option value="0" {% if not m.ordem %}selected{% endif %}>não publica</option>
+                          </select>
+                          <noscript><button class="btn btn-sm btn-outline-secondary">ok</button></noscript>
+                        </form>
+                      </div>
+
+                      {# ===== COMO A SESSÃO ESTÁ AGORA =====
+                         ESTADO E PEDIDO SÃO COISAS DIFERENTES (19/08/2026).
+                         Antes, este bloco mostrava só o andamento do último
+                         PEDIDO: um Conectar bem-sucedido em 17/08 deixava o card
+                         verde escrito "Conectado, não precisa fazer nada" para
+                         sempre — inclusive em 19/08, com as duas sessões
+                         apagadas e o topo da página gritando SCAN_QR_CODE. E sem
+                         pedido nenhum ele dizia "nunca conectado" sobre sessão
+                         que publica há meses.
+                         Agora o estado vem primeiro e sai de `instancias_waha`,
+                         que é o que a MÁQUINA relatou (regra 16-0-D). O pedido
+                         continua logo abaixo, como história do que foi pedido. #}
+                      <div class="mt-3" data-andamento>
+                        {% include 'admin/_estado_sessao.html' %}
+                        {% if p %}
+                          {% include 'admin/_pareamento_andamento.html' %}
+                        {% endif %}
+                      </div>
+
+                      <div class="mt-3 d-flex flex-wrap gap-2">
+                        {% if p and p.em_curso %}
+                        <form method="POST" class="d-inline">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                          <input type="hidden" name="acao" value="parar_pedido">
+                          <input type="hidden" name="usuario_id" value="{{ m.usuario_id }}">
+                          <button class="btn btn-sm btn-outline-danger"
+                                  onclick="return confirm('Parar o pedido de {{ m.nome }}? Nada é desconectado — só o preparo em andamento é interrompido.');">
+                            <i class="fas fa-stop"></i> Parar
+                          </button>
+                        </form>
+                        {# 19/09/2026 (decisão do dono): o botão que só apagava o
+                           histórico do pedido saiu — registro não se apaga, e ele
+                           levava a crer que desconectava. O "Parar" acima fica. #}
+                        {% endif %}
+
+                        <form method="POST" class="d-inline">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                          <input type="hidden" name="acao" value="provisionar">
+                          <input type="hidden" name="usuario_id" value="{{ m.usuario_id }}">
+                          {% if p and p.situacao == 'atendido' and p.etapa == 'conectado' %}
+                          <input type="hidden" name="recriar" value="sim">
+                          <button class="btn btn-sm btn-outline-secondary"
+                                  onclick="return confirm('Refazer a conexão de {{ m.nome }}? O WhatsApp atual será desvinculado e você vai precisar parear de novo.');">
+                            <i class="fas fa-rotate me-1"></i>Refazer a conexão
+                          </button>
+                          {% else %}
+                          <button class="btn btn-sm btn-success"
+                                  {% if not m.telefone %}disabled title="Cadastre o telefone deste usuário primeiro"{% endif %}>
+                            <i class="fas fa-plug me-1"></i>
+                            {%- if p and p.codigo and p.em_curso %}Pedir outro código
+                            {%- elif p and p.situacao == 'falhou' %}Tentar de novo
+                            {%- else %}Conectar{% endif %}
+                          </button>
+                          {% endif %}
+                        </form>
+                      </div>
+
+                      {# ===== LIMPAR A SESSÃO DESTE NÚMERO (08/09/2026) =====
+                         Fica AQUI, junto do número, e não numa tabela lá
+                         embaixo: é aqui que se olha quando se quer mexer numa
+                         sessão. O "Limpar" vizinho some com o REGISTRO do
+                         pedido e não desconecta nada — este apaga a sessão no
+                         WAHA de verdade, e só a dela: as outras sessões do
+                         mesmo container não são tocadas.
+                         O nome digitado é a trava: apagar custa um pareamento,
+                         e pareamento depende de gente com o celular na mão. #}
+                      {# Só aparece quando HÁ sessão para apagar. `sem_relato`
+                         quer dizer que a máquina nunca contou que esta sessão
+                         existe — oferecer "limpar" ali seria prometer uma ação
+                         que não tem alvo. #}
+                      {# 18/09/2026 (A2/E2): aparece também com a máquina
+                         parada — o pedido fica guardado e se cumpre quando o
+                         WhatsApp subir (`whatsapp.cumprir_apagar_pendente`). #}
+                      {% if m.sessao_prevista and current_user.pode_administrar %}
+                      <details class="mt-2">
+                        <summary class="small text-danger" style="cursor:pointer">
+                          <i class="fas fa-trash me-1"></i>Limpar a sessão deste número
+                        </summary>
+                        <form method="POST" class="mt-2 d-flex flex-wrap align-items-center gap-2"
+                              onsubmit="return confirm('Apagar a sessão {{ m.sessao_prevista }}?\n\nEla sai do WhatsApp e a memória é liberada. As outras sessões não são tocadas. Para usar este número de novo, será preciso parear.');">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                          <input type="hidden" name="acao" value="apagar_sessao">
+                          <input type="hidden" name="sessao" value="{{ m.sessao_prevista }}">
+                          {# A CONFIRMAÇÃO É UMA CAIXINHA, NÃO UM NOME DIGITADO
+                             (13/09/2026). O nome da sessão vive dentro do
+                             container; quem clica não tem como saber. Pedir que
+                             ele digitasse travava o próprio dono no botão. #}
+                          <div class="form-check small mb-0">
+                            <input class="form-check-input" type="checkbox"
+                                   name="confirmo" id="cf{{ m.usuario_id }}" required>
+                            <label class="form-check-label" for="cf{{ m.usuario_id }}">
+                              sim, apagar esta sessão e tudo o que é dela
+                            </label>
+                          </div>
+                          {% if m.estado and m.estado.pronta %}
+                          <div class="form-check small mb-0">
+                            <input class="form-check-input" type="checkbox"
+                                   name="ciente_working" id="cw{{ m.usuario_id }}" required>
+                            <label class="form-check-label" for="cw{{ m.usuario_id }}">
+                              está conectada — sei que sai do ar
+                            </label>
+                          </div>
+                          {% endif %}
+                          <button class="btn btn-sm btn-outline-danger">Limpar sessão</button>
+                        </form>
+                      </details>
+                      {% endif %}
+                    </div>
+                    {% endfor %}
+                    <p class="small text-muted mb-0">
+                      O preparo leva alguns minutos e <strong>esta tela se atualiza
+                      sozinha</strong> — pode ficar olhando. Fechar a página não
+                      interrompe nada: ao voltar, o acompanhamento continua de onde estava.
+                    </p>
+                    {% endif %}
+                  </div>
+                </div>
+
+                {% if erro %}
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>{{ erro }}
+                </div>
+                {% endif %}
+
+                {# ===== O QUE A MÁQUINA TEM (descoberto, não digitado) ===== #}
+                <h5 class="mt-4 border-bottom pb-2">
+                  <i class="fas fa-server me-2 text-secondary"></i>O que existe na máquina
+                </h5>
+                {% if instancias %}
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle mb-2">
+                    <thead><tr><th>Papel</th><th>Instância</th><th>Sessão</th>
+                                <th>Situação</th><th>Endereço</th>
+                                <th class="text-end">Apagar</th></tr></thead>
+                    <tbody>
+                      {% for i in instancias %}
+                      <tr>
+                        <td>{{ i.papel or '—' }}</td>
+                        <td><code>{{ i.container }}</code></td>
+                        <td><code>{{ i.sessao or '—' }}</code></td>
+                        <td>
+                          {% if i.visto_velho %}
+                            {# 17/08/2026, item F: status com mais de 20 min não é afirmado
+                               como atual — vira "sem notícia" em cinza, nunca um FAILED
+                               vermelho que já pode não ser verdade. #}
+                            <span class="badge bg-secondary">sem notícia</span>
+                          {% elif i.pronta %}
+                            <span class="badge bg-success">conectada</span>
+                          {% elif i.status %}
+                            <span class="badge bg-warning text-dark">{{ i.status }}</span>
+                          {% else %}
+                            <span class="badge bg-secondary">sem sessão</span>
+                          {% endif %}
+                          {% if i.numero %}<div class="small text-muted">{{ i.numero }}</div>{% endif %}
+                          {# AVISO, NUNCA SUBSTITUIÇÃO (convenção da casa): a idade é uma
+                             segunda informação, embaixo do status — nunca troca o lugar dele. #}
+                          {% if i.visto_ha %}
+                            <div class="small {{ 'text-muted' if not i.visto_velho else 'text-secondary' }}">
+                              o que a máquina contou — há {{ i.visto_ha }}
+                            </div>
+                          {% endif %}
+                        </td>
+                        <td class="small">
+                          {{ i.base or '—' }}
+                          {% if not i.alcancavel %}
+                            <div class="text-danger">o site não alcança esta porta</div>
+                          {% endif %}
+                        </td>
+                        {# APAGAR A SESSÃO — o terceiro caminho (08/09/2026).
+                           "Limpar" some com o registro e NÃO desconecta nada;
+                           "Refazer a conexão" apaga e recria, cobrando um
+                           pareamento. Faltava apagar SEM recriar, que é o
+                           único jeito de devolver a memória de um número que
+                           não se quer manter de pé agora. #}
+                        <td class="text-end">
+                          {% if i.sessao and current_user.pode_administrar %}
+                          <form method="POST" class="d-inline"
+                                onsubmit="return confirm('Apagar a sessão {{ i.sessao }}?\n\nEla sai do WhatsApp e a memória é liberada. Para usar este número de novo, será preciso parear.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="acao" value="apagar_sessao">
+                            <input type="hidden" name="sessao" value="{{ i.sessao }}">
+                            {# 18/09/2026 (E-A): o nome DIGITADO ia num campo que a
+                               rota não lê desde 13/09 (ela exige `confirmo`) — o
+                               botão não fazia nada. Quem usa não sabe o nome da
+                               sessão: a trava passa a ser a caixinha, como no
+                               "Limpar a sessão deste número". #}
+                            <div class="form-check small text-start mb-1">
+                              <input class="form-check-input" type="checkbox"
+                                     name="confirmo" value="1" id="confirmo{{ loop.index }}">
+                              <label class="form-check-label" for="confirmo{{ loop.index }}">
+                                sim, apagar a sessão {{ i.sessao }}
+                              </label>
+                            </div>
+                            {% if i.pronta %}
+                            <div class="form-check small text-start mb-1">
+                              <input class="form-check-input" type="checkbox"
+                                     name="ciente_working" id="ciente{{ loop.index }}">
+                              <label class="form-check-label" for="ciente{{ loop.index }}">
+                                está conectada — sei que sai do ar
+                              </label>
+                            </div>
+                            {% endif %}
+                            <button class="btn btn-sm btn-outline-danger">
+                              <i class="fas fa-trash me-1"></i>Apagar
+                            </button>
+                          </form>
+                          {% else %}
+                          <span class="text-muted small">—</span>
+                          {% endif %}
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                <p class="small text-muted">
+                  Esta lista é contada pela <strong>própria máquina</strong> a cada rodada —
+                  endereço, porta, chave e nome de sessão não se digitam mais. Foi o que
+                  acabou com o "a chave de acesso não confere" enquanto o WhatsApp estava
+                  funcionando.
+                </p>
+                {% else %}
+                <div class="alert alert-secondary small">
+                  A máquina da automação ainda não contou o que tem. Isso acontece na
+                  primeira rodada depois que ela liga. Enquanto isso, o sistema usa o
+                  endereço que está no cofre.
+                </div>
+                {% endif %}
+
+                {% if painel_cidades %}
+                <!-- VISAO DE TODAS AS CIDADES (só o dono da instalação) -->
+                <h5 class="mt-4 border-bottom pb-2"><i class="fas fa-city me-2"></i>Todas as cidades</h5>
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle">
+                    <thead><tr><th>Cidade</th><th>Sessão</th><th>WAHA</th><th>Responsável</th><th>Fila</th></tr></thead>
+                    <tbody>
+                      {% for c in painel_cidades %}
+                      <tr>
+                        <td>{{ c.cidade }}</td>
+                        <td><code>{{ c.sessao }}</code></td>
+                        <td>{% if c.waha_configurado %}<span class="badge bg-success">configurado</span>
+                            {% else %}<span class="badge bg-secondary">não</span>{% endif %}</td>
+                        <td class="small">{{ c.responsavel or '—' }}</td>
+                        <td class="small">
+                          {% if c.pedido and c.pedido.situacao in ['pendente', 'em_andamento'] %}
+                            <span class="badge bg-warning text-dark">{{ c.pedido.situacao }}</span>
+                          {% else %}—{% endif %}
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                {% endif %}
+
+                {# 19/09/2026 (item 73): SO O SUPREMO. Aqui moram o IP e a porta do
+                   computador da automação, o endereço da placa (MAC), a chave do
+                   WAHA e os botões de ligar e desligar a máquina. Não é operação
+                   da cidade — é manutenção, e é dado que não deve circular. #}
+                {% if current_user.is_supremo %}
+                {# ===== AJUSTE À MÃO — recolhido, porque é exceção ===== #}
+                <details class="mt-4">
+                  <summary class="text-muted small">
+                    Ajustar o endereço na mão (só se a máquina nunca conseguir contar)
+                  </summary>
+                  <p class="text-muted small mt-2">
+                    O WhatsApp roda no computador da automação, não neste servidor. O
+                    endereço é o IP dele na rede local — algo como
+                    <code>http://IP-DA-MAQUINA:3000</code>, nunca <code>localhost</code>.
+                    A chave é a mesma da linha <code>WAHA_API_KEY</code> daquela instância.
+                    <strong>Preencher aqui é exceção:</strong> na próxima vez que a máquina
+                    rodar, o que ela contar vale mais que o que estiver escrito aqui.
+                  </p>
+                  <form method="POST" class="row g-2 align-items-end">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="acao" value="salvar">
+                    <div class="col-md-6">
+                      <label class="form-label small fw-bold">Endereço do WAHA</label>
+                      <input type="text" name="waha_url" class="form-control"
+                             value="{{ waha_url or '' }}" placeholder="http://IP-DA-MAQUINA:3000" required>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small fw-bold">
+                        Chave de API
+                        {% if waha_key_ok %}<span class="badge bg-success ms-1">salva</span>{% endif %}
+                      </label>
+                      <input type="password" name="waha_key" class="form-control"
+                             placeholder="{{ 'deixe em branco para manter' if waha_key_ok else 'chave do WAHA' }}">
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small fw-bold">WhatsApp do responsável</label>
+                      <input type="text" name="responsavel" class="form-control"
+                             value="{{ responsavel or '' }}" placeholder="(DD) 9XXXX-XXXX">
+                      <div class="form-text">Recebe códigos de pareamento e alertas de falha.</div>
+                    </div>
+                    <div class="col-12">
+                      <button type="submit" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-save me-1"></i>Salvar
+                      </button>
+                    </div>
+                  </form>
+                  <p class="text-muted small mt-3">
+                    Cidade deste cadastro: <strong>{{ escopo }}</strong>.
+                    A chave fica no cofre do servidor, fora do banco e fora do backup —
+                    esta tela nunca mostra o valor de volta.
+                  </p>
+
+                  <hr>
+                  {# LIGAR A MÁQUINA PELA REDE (Wake-on-LAN).
+                     Isto existia no servidor e NÃO TINHA TELA: dava para gravar
+                     o endereço da placa por POST e não havia campo em lugar
+                     nenhum. Recurso sem tela é recurso que ninguém usa. #}
+                  <h6 class="small fw-bold">Ligar o computador da automação pela rede</h6>
+                  <p class="text-muted small">
+                    O endereço da placa de rede fica gravado aqui. É por ele que o site
+                    manda o sinal que acorda a máquina — 15 minutos antes de cada
+                    publicação e sempre que alguém clica em Conectar. Se a máquina
+                    dorme às vezes com o cabo conectado e às vezes sem (Wi-Fi),
+                    cadastre as duas placas separadas por vírgula — o sinal vai
+                    para as duas, e só uma precisa responder.
+                  </p>
+                  <form method="POST" class="row g-2 align-items-end">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="acao" value="salvar_maquina">
+                    <div class="col-md-5">
+                      <label class="form-label small fw-bold">Endereço da placa (MAC)</label>
+                      <input type="text" name="wol_mac" class="form-control"
+                             value="{{ wol_mac }}" placeholder="00:1A:2B:3C:4D:5E, 11:22:33:44:55:66">
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small fw-bold">Difusão da rede</label>
+                      <input type="text" name="wol_broadcast" class="form-control"
+                             value="{{ wol_broadcast }}" placeholder="192.168.X.255">
+                    </div>
+                    <div class="col-md-3">
+                      <button class="btn btn-secondary btn-sm w-100">
+                        <i class="fas fa-save me-1"></i>Salvar
+                      </button>
+                    </div>
+                  </form>
+                  <form method="POST" class="mt-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="acao" value="ligar_maquina">
+                    <button class="btn btn-outline-primary btn-sm">
+                      <i class="fas fa-power-off me-1"></i>Ligar a máquina agora
+                    </button>
+                    <span class="text-muted small ms-2">
+                      leva de 1 a 3 minutos; não faz mal clicar com ela já ligada
+                    </span>
+                  </form>
+
+                  {# ===== DESLIGAR A MÁQUINA (17/08/2026, item G) =====
+                     Pela mesma porta que já existe: grava um pedido, e a própria
+                     máquina o atende na próxima vez que perguntar ao site
+                     (até 15 min) — sem SSH, sem peça nova. #}
+                  {% if pedido_desligar.ativo %}
+                  <form method="POST" class="mt-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="acao" value="cancelar_desligar_maquina">
+                    <button class="btn btn-outline-secondary btn-sm">
+                      <i class="fas fa-xmark me-1"></i>Cancelar o pedido de desligar
+                    </button>
+                    <span class="text-warning small ms-2">
+                      pedido feito há {{ pedido_desligar.ha }} — ela desliga assim que puder
+                    </span>
+                  </form>
+                  {% else %}
+                  <form method="POST" class="mt-2"
+                        onsubmit="return confirm('Desligar a máquina da automação?\n\nEla para os programas na ordem certa (protegendo a sessão do WhatsApp) e desliga sozinha, em até 15 minutos. Se tiver pareamento em andamento ou mensagem esperando na fila, ela termina isso primeiro.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="acao" value="desligar_maquina">
+                    <button class="btn btn-outline-danger btn-sm">
+                      <i class="fas fa-power-off me-1"></i>Desligar a máquina
+                    </button>
+                    <span class="text-muted small ms-2">
+                      para os programas na ordem certa e desliga; leva até 15 min
+                    </span>
+                  </form>
+                  {% endif %}
+                </details>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+  // ACOMPANHAMENTO AO VIVO (P-75), no mesmo formato da importação de atleta:
+  // fetch + setTimeout, sem biblioteca nenhuma.
+  //
+  // Pergunta de 3 em 3 segundos ENQUANTO houver alguém em andamento; quando
+  // todos chegam ao fim, espaça para 20s (o desfecho pode vir da máquina a
+  // qualquer momento) e nunca desiste calado: se a rede cair, avisa e continua.
+  (function () {
+    const url    = {{ url_for('admin.whatsapp_andamento')|tojson }};
+    const pulso  = document.getElementById('pulso');
+    const badge  = document.getElementById('maquinaBadge');
+    const detalhe = document.getElementById('maquinaDetalhe');
+    let anterior = '';
+
+    const passoHtml = (p) => {
+      const icone = p.estado === 'feito' ? '<i class="fas fa-check-circle text-success"></i>'
+                  : p.estado === 'agora' ? '<span class="spinner-border spinner-border-sm text-primary"></span>'
+                  : p.estado === 'parou' ? '<i class="fas fa-circle-stop text-danger"></i>'
+                  : '<i class="far fa-circle text-muted"></i>';
+      const classe = p.estado === 'agora' ? 'fw-bold' : p.estado === 'parou' ? 'text-danger' : (p.estado === 'feito' ? 'text-muted' : 'text-muted opacity-50');
+      const nota = p.estado === 'parou' ? ' <small>(parou aqui)</small>' : '';
+      return `<div class="d-flex align-items-center gap-2 ${classe}" style="font-size:.85rem;">
+                ${icone}<span>${p.titulo}${nota}</span></div>`;
+    };
+
+    // O HISTÓRICO OBEDECE VOCÊ, NÃO O RELÓGIO (16/08/2026, achado do dono).
+    //
+    // A tela se redesenha inteira de 3 em 3 segundos. Como o `<details>` nascia
+    // fechado a cada volta, abrir "O que já aconteceu" durava três segundos: na
+    // prática ele não obedecia — abria e fechava sozinho. Agora o estado de cada
+    // linha é lembrado aqui e devolvido no redesenho, e quando nada muda a tela
+    // nem é reescrita (reescrever igual é o que fazia o texto piscar).
+    const historicoAberto = {};
+
+    const desenhar = (linha) => {
+      const alvo = document.querySelector(`[data-linha="${linha.usuario_id}"] [data-andamento]`);
+      if (!alvo) return;
+      const p = linha.pedido;
+
+      // Antes de reescrever, guarda como a pessoa deixou o histórico.
+      const jaAberto = alvo.querySelector('details');
+      if (jaAberto) historicoAberto[linha.usuario_id] = jaAberto.open;
+
+      // ESTADO PRIMEIRO, PEDIDO DEPOIS (19/08/2026) — o mesmo desenho do
+      // `_estado_sessao.html`. Antes daqui saía "nunca conectado" quando não
+      // havia pedido, e "Conectado" enquanto houvesse um pedido antigo
+      // bem-sucedido: as duas coisas erradas pelo mesmo motivo, ler o pedido
+      // como se fosse o estado da sessão.
+      let html = '';
+      const e = linha.estado;
+      if (e) {
+        const icone = e.chave === 'conectado'      ? 'fa-check-circle'
+                    : e.chave === 'precisa_parear' ? 'fa-plug-circle-xmark'
+                    : e.chave === 'falhou'         ? 'fa-triangle-exclamation'
+                    : e.chave === 'subindo'        ? 'fa-hourglass-half'
+                    : 'fa-circle-question';
+        html += `<div class="alert alert-${e.cor} py-2 mb-2 small d-flex align-items-start gap-2">
+                   <i class="fas ${icone} mt-1"></i>
+                   <div><strong>${e.rotulo}.</strong> ${e.detalhe}
+                     ${e.automacao_parada ? `<div class="mt-1" style="font-size:.78rem;"><i class="fas fa-plug-circle-xmark me-1"></i><strong>A automação não está rodando agora</strong> — o vínculo acima continua valendo e volta a publicar quando ela subir.</div>` : ''}
+                   </div>
+                 </div>`;
+      }
+
+      if (!p) { alvo.innerHTML = html; return; }
+
+      if (p.situacao === 'cancelado') {
+        html += '<div class="alert alert-secondary py-2 mb-2 small"><i class="fas fa-ban me-1"></i>'
+              + 'Interrompido. Pode conectar de novo quando quiser.</div>';
+      } else if (p.situacao === 'falhou' && p.motivo) {
+        html += `<div class="alert alert-danger py-2 mb-2 small">
+                   ${p.parou_em ? `<div class="text-muted" style="font-size:.75rem;">tentativa encerrada em ${p.parou_em}</div>` : ''}
+                   <strong>${p.motivo.o_que_houve}</strong>
+                   <div class="mt-1">${p.motivo.o_que_fazer}</div>
+                   ${p.motivo.detalhe ? `<div class="mt-1 text-muted" style="font-size:.75rem;">detalhe da máquina: ${p.motivo.detalhe}</div>` : ''}
+                 </div>`;
+      } else if (p.codigo) {
+        html += `<div class="alert alert-success py-2 mb-2">
+                   <div class="small">Digite este código no celular (vale cerca de 1 minuto):</div>
+                   <div class="text-center my-2" style="font-size:1.8rem;font-weight:700;letter-spacing:.3rem;">${p.codigo}</div>
+                   ${(p.etapa === 'aguardando' && p.ha_quanto_tempo) ? `<div class="small text-center mb-1"><strong>Código gerado há ${p.ha_quanto_tempo}.</strong> Se o celular recusar, use <strong>Pedir outro código</strong>.</div>` : ''}
+                   <div class="small">WhatsApp → Aparelhos conectados → Conectar um aparelho →
+                   <em>Conectar com número de telefone</em>.</div>
+                 </div>`;
+      }
+
+      // OS PASSOS SEMPRE APARECEM: é a resposta de "até onde chegou?".
+      html += '<div class="d-flex flex-column gap-1 mb-2">' + (p.passos || []).map(passoHtml).join('') + '</div>';
+
+      if (p.em_curso) {
+        html += `<div class="small text-muted">${p.etapa_titulo || ''} — há ${p.ha_quanto_tempo}.</div>`;
+        // AVISO EMBAIXO, NUNCA NO LUGAR DO STATUS: saber que demorou não pode
+        // custar a informação de em que passo está.
+        if (p.passou_do_tempo) {
+          html += `<div class="alert alert-warning py-2 mt-2 mb-0 small">
+                     Este passo costuma levar até ${p.limite_humano} e já passou disso.
+                     Dá para esperar mais um pouco ou apertar <strong>Parar</strong> e tentar de novo.
+                   </div>`;
+        }
+      }
+
+      if ((p.historico || []).length) {
+        const aberto = historicoAberto[linha.usuario_id] ? ' open' : '';
+        html += `<details class="mt-2"${aberto}>`
+              + '<summary class="small text-muted" style="cursor:pointer;">'
+              + 'O que já aconteceu <span class="text-muted">(clique para abrir e fechar)</span></summary>'
+              + '<ul class="small text-muted mt-2 mb-0 ps-3">'
+              + p.historico.map(h => `<li>${h.hora} — ${h.titulo}${h.mensagem ? ': ' + h.mensagem : ''}</li>`).join('')
+              + '</ul></details>';
+      }
+      // SÓ REESCREVE QUANDO MUDOU: reescrever igual apaga a seleção de texto de
+      // quem está lendo e faz a tela piscar de 3 em 3 segundos.
+      if (alvo.innerHTML !== html) alvo.innerHTML = html;
+    };
+
+    const acompanhar = async () => {
+      let intervalo = 20000;
+      try {
+        const resposta = await fetch(url, {credentials: 'same-origin'});
+        const dados = await resposta.json();
+        (dados.equipe || []).forEach(desenhar);
+
+        if (dados.maquina && badge && dados.maquina.rotulo) {
+          badge.innerHTML = badge.innerHTML.replace(/Máquina da automação:.*$/,
+            'Máquina da automação: ' + dados.maquina.rotulo);
+          if (detalhe && dados.maquina.detalhe) detalhe.textContent = dados.maquina.detalhe;
+        }
+
+        if (dados.algum_ativo) {
+          intervalo = 3000;
+          if (pulso) pulso.classList.remove('d-none');
+        } else if (pulso) {
+          pulso.classList.add('d-none');
+        }
+
+        // Terminou agora? Recarrega uma vez para os botões certos aparecerem
+        // (Parar vira Limpar, e isso é do servidor, não do JavaScript).
+        //
+        // A COMPARAÇÃO PRECISA INCLUIR A ETAPA (16/08/2026, achado do dono no
+        // primeiro pareamento que deu certo). Ela olhava só a situação — e o
+        // último trecho do pareamento vai de `atendido/aguardando` para
+        // `atendido/conectado`, sem trocar de situação. Resultado: a tela dizia
+        // "Conectado. Não precisa fazer nada" com o botão **Parar** embaixo,
+        // até alguém recarregar na mão.
+        const agora = (dados.equipe || [])
+          .map(l => l.pedido ? (l.pedido.situacao + ':' + (l.pedido.etapa || '')) : '-')
+          .join('|');
+        if (anterior && anterior !== agora && !dados.algum_ativo) {
+          window.location.reload();
+          return;
+        }
+        anterior = agora;
+      } catch (erro) {
+        intervalo = 8000;   // sem rede: pergunta menos, sem desistir
+      }
+      window.setTimeout(acompanhar, intervalo);
+    };
+    acompanhar();
+  }());
+</script>
+{% endblock %}

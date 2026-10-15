@@ -1,0 +1,384 @@
+{% extends "base.html" %}
+
+{% block title %}Ajuste Manual - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h1 class="h4 mb-1">
+                <i class="fas fa-plus-circle text-primary"></i> Ajuste manual de quilometragem
+            </h1>
+            <div class="text-muted">
+                {{ atleta_nome }} · Strava ID <code>{{ strava_id }}</code>
+            </div>
+            {% if atleta_mesclado %}
+            <div class="small text-info mt-1">
+                <i class="fas fa-code-merge"></i> Este perfil foi mesclado — os quilômetros
+                abaixo já são a soma de todos os perfis fundidos (cabeça do grupo:
+                Strava ID <code>{{ strava_id_canonico }}</code>).
+            </div>
+            {% endif %}
+        </div>
+        <a href="{{ url_for('admin.lista_atletas') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="text-muted small">{{ month }}/{{ year }}</div>
+                    <div class="display-6 fw-bold text-primary">{{ "%.1f"|format(km_corrida_mes) }}</div>
+                    <div class="text-muted"><i class="fas fa-running"></i> km Corrida / Caminhada</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="text-muted small">{{ month }}/{{ year }}</div>
+                    <div class="display-6 fw-bold text-warning">{{ "%.1f"|format(km_ciclismo_mes) }}</div>
+                    <div class="text-muted"><i class="fas fa-bicycle"></i> km Ciclismo</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# CONFERÊNCIA AUTOMÁTICA — tirar o atleta, só neste mês (27/08/2026).
+       A conferência traz para o ranking o que está no Strava e não foi postado,
+       cobrindo as falhas da coleta pelo WhatsApp. Quem não quiser participar
+       num mês tem de poder sair — e a saída vale só naquele mês, para ninguém
+       precisar lembrar de desmarcar depois. #}
+    <div class="card shadow-sm mb-4 {{ 'border-secondary' if conf_dispensado else '' }}">
+        <div class="card-body">
+            <form method="post"
+                  action="{{ url_for('admin.alternar_dispensa_conferencia', strava_id=strava_id) }}"
+                  class="d-flex flex-wrap align-items-center gap-3 mb-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="cidade" value="{{ cidade_selecionada }}">
+                <input type="hidden" name="fora" value="{{ '0' if conf_dispensado else '1' }}">
+                <div class="flex-grow-1">
+                    <div class="fw-semibold">
+                        <i class="fas fa-user-check me-1 {{ 'text-secondary' if conf_dispensado else 'text-success' }}"></i>
+                        Conferência automática em {{ conf_mes_nome }}/{{ year }}
+                    </div>
+                    <div class="text-muted small">
+                        {% if conf_dispensado %}
+                            <strong>Este atleta está fora neste mês.</strong> Nada dele entra no
+                            ranking sem ser postado no grupo. Em {{ conf_mes_nome }} do mês que vem
+                            ele volta sozinho, se voltar a postar.
+                        {% else %}
+                            O sistema confere o Strava dele de tempos em tempos e traz o que faltou —
+                            é a rede contra a coleta do WhatsApp perder link.
+                            <strong>Se ele pedir para não participar deste mês, tire-o aqui.</strong>
+                        {% endif %}
+                    </div>
+                </div>
+                <button type="submit"
+                        class="btn btn-sm {{ 'btn-outline-success' if conf_dispensado else 'btn-outline-secondary' }}">
+                    {% if conf_dispensado %}
+                        <i class="fas fa-rotate-left"></i> Voltar a conferir
+                    {% else %}
+                        <i class="fas fa-user-slash"></i> Não conferir neste mês
+                    {% endif %}
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {# A PESSOA ESCOLHE SE APARECE (28/08/2026, regra do dono).
+       A página inicial passou a mostrar nome e quilômetros de quem participa.
+       Nem todo mundo quer isso, e escolher é direito dela. Os quilômetros
+       ficam: o pedido é de anonimato na vitrine, não de sair do projeto. #}
+    {# COMO ESTA PESSOA APARECE NO RANKING (29/08/2026, regra do dono).
+       O nome do Strava nao tinha conserto: `nome_atual` e snapshot e todo link
+       novo o reescrevia. A Ana Exemplo e conhecida como Ana Modelo; a
+       Bia Exemplo, como Bia Modelo; o carlos escreveu o proprio nome em
+       minuscula. Ninguem vai pedir para mudar -- e agora nao precisa. #}
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="post"
+                  action="{{ url_for('admin.definir_nome_exibicao', strava_id=strava_id) }}"
+                  class="mb-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="fw-semibold mb-1">
+                    <i class="fas fa-id-card text-primary me-1"></i>
+                    Como aparece no ranking
+                </div>
+                <p class="text-muted small mb-2">
+                    Hoje aparece como <strong>{{ nome_no_ranking_hoje }}</strong>.
+                    {% if not nome_exibicao_atual %}
+                      Esse nome é escolhido pelo sistema a partir do Strava
+                      (primeiro nome + o sobrenome mais curto, sem emoji).
+                    {% endif %}
+                    Deixe em branco para voltar ao nome do Strava.
+                </p>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <input type="text" name="nome_exibicao" maxlength="60"
+                           class="form-control form-control-sm" style="max-width: 18rem;"
+                           value="{{ nome_exibicao_atual }}"
+                           placeholder="{{ nome_no_ranking_hoje }}"
+                           aria-label="Nome que aparece no ranking">
+                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-check me-1"></i> Salvar nome
+                    </button>
+                </div>
+                <p class="text-muted small mt-2 mb-0">
+                    Use <strong>nome e sobrenome</strong> (no máximo três palavras). O
+                    ranking vai para o WhatsApp: nome comprido quebra a linha e
+                    desalinha a tabela inteira.
+                    {% if nome_exibicao_atual %}
+                      Enquanto houver um nome aqui, o Strava não o sobrescreve.
+                    {% endif %}
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4 {{ 'border-secondary' if reservado_no_publico else '' }}">
+        <div class="card-body">
+            <form method="post"
+                  action="{{ url_for('admin.alternar_privacidade_atleta', strava_id=strava_id) }}"
+                  class="d-flex flex-wrap align-items-center gap-3 mb-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="cidade" value="{{ cidade_selecionada }}">
+                <input type="hidden" name="reservar" value="{{ '0' if reservado_no_publico else '1' }}">
+                <div class="flex-grow-1">
+                    <div class="fw-semibold">
+                        <i class="fas {{ 'fa-eye-slash text-secondary' if reservado_no_publico else 'fa-eye text-success' }} me-1"></i>
+                        Aparecer nas páginas públicas
+                    </div>
+                    <div class="text-muted small">
+                        {% if reservado_no_publico %}
+                            <strong>Este atleta pediu para não aparecer.</strong> O nome dele não
+                            entra na página inicial nem nas listas públicas, e a página
+                            <code>/ath/{{ strava_id }}</code> não abre para quem não está logado.
+                            Os quilômetros continuam contando no ranking, na medalha e no total
+                            do projeto.
+                        {% else %}
+                            Hoje o nome dele aparece na página inicial e nas listas públicas.
+                            <strong>Se ele pedir para não aparecer, marque aqui</strong> — os
+                            quilômetros continuam contando normalmente.
+                        {% endif %}
+                    </div>
+                </div>
+                <button type="submit"
+                        class="btn btn-sm {{ 'btn-outline-success' if reservado_no_publico else 'btn-outline-secondary' }}">
+                    {% if reservado_no_publico %}
+                        <i class="fas fa-eye"></i> Voltar a aparecer
+                    {% else %}
+                        <i class="fas fa-eye-slash"></i> Não aparecer em público
+                    {% endif %}
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {# Tag de bicicleta (Fase 4 do plano das melhorias, 28/08/2026): Speed x
+       MTB e' injusto -- a bicicleta explica boa parte da velocidade e da
+       quilometragem, nao o atleta. Aparece como selo na tabela de km e na
+       de mais veloz. #}
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="post"
+                  action="{{ url_for('admin.alternar_bicicleta_atleta', strava_id=strava_id) }}"
+                  class="d-flex flex-wrap align-items-center gap-3 mb-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="cidade" value="{{ cidade_selecionada }}">
+                <div class="flex-grow-1">
+                    <div class="fw-semibold"><i class="fas fa-bicycle text-success me-1"></i> Tipo de bicicleta</div>
+                    <div class="text-muted small">
+                        Aparece como selo ao lado do nome, nas tabelas de km e de mais
+                        veloz do ciclismo. Speed cobre mais km em menos tempo que MTB —
+                        marcar certo evita comparar bicicleta com bicicleta diferente.
+                    </div>
+                </div>
+                <select name="tipo_bicicleta" class="form-select form-select-sm" style="max-width: 10rem;">
+                    <option value="mtb" {{ 'selected' if tipo_bicicleta_atual == 'mtb' }}>MTB</option>
+                    <option value="speed" {{ 'selected' if tipo_bicicleta_atual == 'speed' }}>Speed</option>
+                    <option value="gravel" {{ 'selected' if tipo_bicicleta_atual == 'gravel' }}>Gravel</option>
+                </select>
+                <button type="submit" class="btn btn-outline-secondary btn-sm">Salvar</button>
+            </form>
+        </div>
+    </div>
+
+    {# SEXO E TETO DE VELOCIDADE (09/09/2026, pedido do dono).
+       O sexo NAO vem do Strava -- a documentacao oficial diz que a escolha de
+       genero "will not appear on your profile page", e a medicao confirmou por
+       dois caminhos. Entao e' o dono quem marca. NUNCA aparece em pagina
+       publica por pessoa: serve so' para a contagem do grupo.
+       O teto individual existe porque quem treina faz com folga o que para
+       outra pessoa seria impossivel -- e libera-lo aqui evita afrouxar a regua
+       da cidade inteira por causa de um atleta rapido. #}
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="post"
+                  action="{{ url_for('admin.definir_sexo_atleta', strava_id=strava_id) }}"
+                  class="d-flex flex-wrap align-items-center gap-3 mb-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="volta_para_tela" value="1">
+                <div class="flex-grow-1">
+                    <div class="fw-semibold">
+                      <i class="fas fa-user text-primary me-1"></i> Sexo
+                    </div>
+                    <div class="text-muted small">
+                        O Strava não informa esse dado, então precisa ser marcado
+                        aqui. <strong>Não aparece em nenhuma página pública</strong> —
+                        serve só para a contagem do grupo na página inicial
+                        (quantas atividades de homens, quantas de mulheres).
+                    </div>
+                </div>
+                <select name="sexo" class="form-select form-select-sm" style="max-width: 10rem;">
+                    <option value="" {{ 'selected' if not sexo_atual }}>Não informado</option>
+                    <option value="M" {{ 'selected' if sexo_atual == 'M' }}>Masculino</option>
+                    <option value="F" {{ 'selected' if sexo_atual == 'F' }}>Feminino</option>
+                </select>
+                <button type="submit" class="btn btn-outline-secondary btn-sm">Salvar</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-lg-5">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <strong>Novo ajuste</strong>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('athlete.add_manual_adjustment', strava_id=strava_id) }}">
+                        <input type="hidden" name="return_to" value="admin_adjustment">
+                        <input type="hidden" name="name_key" value="{{ name_key or '' }}">
+
+                        {% if current_user.is_master and cidades|length > 1 %}
+                        <div class="mb-3">
+                            <label for="cidade" class="form-label">Cidade</label>
+                            <select id="cidade" name="cidade" class="form-select">
+                                {% for cidade in cidades %}
+                                <option value="{{ cidade }}" {% if cidade == cidade_selecionada %}selected{% endif %}>
+                                    {{ cidade }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% else %}
+                        <input type="hidden" name="cidade" value="{{ cidade_selecionada }}">
+                        <div class="mb-3">
+                            <label class="form-label">Cidade</label>
+                            <input type="text" class="form-control" value="{{ cidade_selecionada }}" disabled>
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="modalidade" class="form-label">Modalidade</label>
+                            <select id="modalidade" name="modalidade" class="form-select" required>
+                                <option value="corrida_caminhada">Corrida / Caminhada</option>
+                                <option value="ciclismo">Ciclismo</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="distancia" class="form-label">Distância</label>
+                            <div class="input-group">
+                                <input id="distancia" name="distancia" type="number" step="0.01"
+                                       class="form-control" required>
+                                <span class="input-group-text">km</span>
+                            </div>
+                        </div>
+                        <div class="form-text mb-3">
+                            Use valor positivo para adicionar km ou negativo para descontar km.
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="data" class="form-label">Data da atividade</label>
+                            <input id="data" name="data" type="date" class="form-control" value="{{ today }}" required>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100"
+                                onclick="return confirm('Aplicar este ajuste manual ao ranking?')">
+                            <i class="fas fa-save"></i> Salvar ajuste
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-7">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-light">
+                    <strong>Últimas atividades encontradas</strong>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Cidade</th>
+                                    <th>Tipo</th>
+                                    <th class="text-end">Dist.</th>
+                                    <th class="text-center">Conta?</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for a in atividades_recentes %}
+                                <tr id="atividade-{{ a.id }}" class="{{ 'text-muted' if a.status == 'removida' else '' }}">
+                                    <td>{{ a.data_hora.strftime('%d/%m/%Y') if a.data_hora else '-' }}</td>
+                                    <td>{{ a.cidade or '-' }}</td>
+                                    <td>
+                                        {% if a.modalidade == 'corrida_caminhada' %}
+                                            <i class="fas fa-running text-primary"></i> Corrida/Caminhada
+                                        {% else %}
+                                            <i class="fas fa-bicycle text-warning"></i> Ciclismo
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end fw-bold">{{ "%.2f"|format(a.distancia or 0) }} km</td>
+                                    <td class="text-center">
+                                        <input type="checkbox" class="form-check-input toggle-contagem"
+                                               data-activity-id="{{ a.id }}"
+                                               title="Desmarque para esta atividade não contar no ranking"
+                                               {{ 'checked' if a.status != 'removida' else '' }}>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(() => {
+  const csrf = {{ csrf_token()|tojson }};
+  document.querySelectorAll('.toggle-contagem').forEach((caixa) => {
+    caixa.addEventListener('change', async () => {
+      const id = caixa.dataset.activityId;
+      const linha = document.getElementById('atividade-' + id);
+      const contar = caixa.checked;
+      caixa.disabled = true;
+      try {
+        const resp = await fetch(`/admin/atividade/${id}/alternar-contagem`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+          body: JSON.stringify({contar: contar}),
+        });
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+        if (linha) linha.classList.toggle('text-muted', !contar);
+      } catch (erro) {
+        caixa.checked = !contar;
+        alert('Não consegui salvar essa mudança: ' + erro.message + '. Tente de novo.');
+      } finally {
+        caixa.disabled = false;
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

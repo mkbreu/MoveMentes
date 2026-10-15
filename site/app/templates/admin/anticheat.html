@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}Parâmetros Anticheat — Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-10 mx-auto">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <h4 class="mb-0"><i class="fas fa-sliders-h me-2"></i>Parâmetros do Anticheat</h4>
+      <a href="{{ url_for('admin.reviews') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Voltar às revisões
+      </a>
+    </div>
+
+    <p class="text-muted small">
+      Cidade: <strong>{{ config.cidade if config else current_user.cidade_ativa }}</strong>.
+      Estes limites definem quando uma atividade é marcada como suspeita.
+      Um atleta com desempenho legítimo fora da curva pode receber um limite
+      individual na seção abaixo.
+    </p>
+
+    {# ===== Limites da cidade + tolerância ===== #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light">
+        <strong><i class="fas fa-city me-1"></i>Limites da cidade</strong>
+      </div>
+      <div class="card-body">
+        {% if not config %}
+        <div class="alert alert-warning mb-0">
+          <i class="fas fa-exclamation-triangle me-1"></i>
+          Configuração da cidade não encontrada. Cadastre a cidade antes de ajustar os limites.
+        </div>
+        {% else %}
+        <form method="POST" action="{{ url_for('admin.anticheat_config') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="acao" value="limites">
+
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label small fw-bold">Tolerância por tipo de flag</label>
+              <input type="number" min="1" step="1" name="tolerancia_flags" class="form-control"
+                     value="{{ config.tolerancia_flags or 3 }}">
+              <div class="form-text">
+                Nº de atividades suspeitas do mesmo tipo toleradas no mês.
+                A partir da seguinte (a {{ (config.tolerancia_flags or 3) + 1 }}ª) a atividade sai do ranking.
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-bold">Pace máx. corrida &lt; 5 km (min/km)</label>
+              <input type="text" name="pace_max_corrida_curta" class="form-control"
+                     value="{{ '%.3f'|format(config.pace_max_corrida_curta) if config.pace_max_corrida_curta is not none else '' }}"
+                     placeholder="{{ '%.3f'|format(limites_default.pace_max_corrida_curta) }}">
+              <div class="form-text">Pace menor que este = suspeito (mais rápido).</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-bold">Pace máx. corrida ≥ 5 km (min/km)</label>
+              <input type="text" name="pace_max_corrida_longa" class="form-control"
+                     value="{{ '%.3f'|format(config.pace_max_corrida_longa) if config.pace_max_corrida_longa is not none else '' }}"
+                     placeholder="{{ '%.3f'|format(limites_default.pace_max_corrida_longa) }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-bold">Velocidade mín. ciclismo (km/h)</label>
+              <input type="text" name="velocidade_min_ciclismo" class="form-control"
+                     value="{{ '%.1f'|format(config.velocidade_min_ciclismo) if config.velocidade_min_ciclismo is not none else '' }}"
+                     placeholder="sem mínimo">
+              <div class="form-text">Vazio = não flagra por velocidade baixa.</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-bold">Velocidade máx. ciclismo (km/h)</label>
+              <input type="text" name="velocidade_max_ciclismo" class="form-control"
+                     value="{{ '%.1f'|format(config.velocidade_max_ciclismo) if config.velocidade_max_ciclismo is not none else '' }}"
+                     placeholder="{{ '%.1f'|format(limites_default.velocidade_max_ciclismo) }}">
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <button type="submit" class="btn btn-primary btn-sm">
+              <i class="fas fa-save me-1"></i>Salvar limites da cidade
+            </button>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ===== O padrão de cada atleta (19/09/2026, item 75) =====
+       Para o limite individual não ser palpite: quem tem flag de velocidade,
+       quantas, e em que faixa elas caem. Só leitura — ajustar é no bloco de
+       baixo, aprovar é na tela de Revisões. #}
+    {% if resumo_velocidade %}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light">
+        <strong><i class="fas fa-gauge-high me-1"></i>Quem está sendo flagado por velocidade</strong>
+      </div>
+      <div class="card-body">
+        <p class="small text-muted">
+          Cada linha é um atleta numa modalidade, com as flags de velocidade
+          ainda em aberto. Quem repete a mesma faixa em muitas atividades
+          costuma ser o padrão da pessoa, não fraude: defina o limite dela no
+          bloco abaixo e as próximas atividades param de cair na revisão.
+          As flags já abertas se resolvem na tela
+          <a href="{{ url_for('admin.reviews') }}">Revisões do anticheat</a>.
+        </p>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>Atleta</th><th>Modalidade</th>
+                <th class="text-end">Flags</th>
+                <th class="text-end">Menor</th>
+                <th class="text-end">Média</th>
+                <th class="text-end">Maior</th>
+                <th>Última</th><th>Limite próprio</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in resumo_velocidade %}
+              <tr>
+                <td>{{ r.nome }}<div class="text-muted" style="font-size:.72rem;">{{ r.cidade }}</div></td>
+                <td class="small">{{ 'ciclismo' if r.modalidade == 'ciclismo' else 'corrida e caminhada' }}</td>
+                <td class="text-end"><strong>{{ r.flags }}</strong></td>
+                <td class="text-end">{{ r.vel_min }}</td>
+                <td class="text-end">{{ r.vel_media }}</td>
+                <td class="text-end">{{ r.vel_max }}</td>
+                <td class="small text-muted">{{ r.ultima }}</td>
+                <td class="small">
+                  {% if r.tem_limite %}<span class="text-success">já tem</span>
+                  {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="small text-muted mb-0">Velocidades em km/h. Mostrando os 80 atletas com mais flags.</p>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ===== Overrides por atleta ===== #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light">
+        <strong><i class="fas fa-user-cog me-1"></i>Limites individuais por atleta</strong>
+      </div>
+      <div class="card-body">
+
+        {% if overrides %}
+        <div class="table-responsive mb-3">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr class="text-muted small">
+                <th>Atleta</th>
+                {% if current_user.is_master %}<th>Cidade</th>{% endif %}
+                <th>Pace &lt;5km</th>
+                <th>Pace ≥5km</th>
+                <th>Vel. mín.</th>
+                <th>Vel. máx.</th>
+                <th>Obs.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ov in overrides %}
+              <tr>
+                <td>
+                  <strong>{{ ov.nome_atleta or ('Strava #' ~ ov.strava_id) }}</strong>
+                  <div class="text-muted small">ID {{ ov.strava_id }}</div>
+                </td>
+                {% if current_user.is_master %}<td class="small">{{ ov.cidade or '—' }}</td>{% endif %}
+                <td class="small">{{ '%.3f'|format(ov.pace_max_corrida_curta) if ov.pace_max_corrida_curta is not none else '—' }}</td>
+                <td class="small">{{ '%.3f'|format(ov.pace_max_corrida_longa) if ov.pace_max_corrida_longa is not none else '—' }}</td>
+                <td class="small">{{ '%.1f'|format(ov.velocidade_min_ciclismo) if ov.velocidade_min_ciclismo is not none else '—' }}</td>
+                <td class="small">{{ '%.1f'|format(ov.velocidade_max_ciclismo) if ov.velocidade_max_ciclismo is not none else '—' }}</td>
+                <td class="small text-muted">{{ ov.observacao or '' }}</td>
+                <td class="text-end">
+                  <form method="POST" action="{{ url_for('admin.anticheat_config') }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="acao" value="override_remover">
+                    <input type="hidden" name="override_id" value="{{ ov.id }}">
+                    <button type="submit" class="btn btn-outline-danger btn-sm"
+                            onclick="return confirm('Remover o limite individual deste atleta?')">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted small mb-3">Nenhum limite individual cadastrado.</p>
+        {% endif %}
+
+        {# Formulário: adicionar/editar override #}
+        <form method="POST" action="{{ url_for('admin.anticheat_config') }}"
+              class="border rounded p-3 bg-light">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="acao" value="override_salvar">
+          <div class="fw-bold small mb-2">
+            <i class="fas fa-plus me-1"></i>Adicionar / atualizar limite individual
+          </div>
+          <div class="row g-2">
+            <div class="col-md-3">
+              <label class="form-label small">Strava ID</label>
+              <input type="text" name="strava_id" class="form-control form-control-sm"
+                     list="atletas-datalist" placeholder="ex.: 12345678" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small">Nome (opcional)</label>
+              <input type="text" name="nome_atleta" class="form-control form-control-sm"
+                     placeholder="preenchido automaticamente">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small">Pace &lt;5km</label>
+              <input type="text" name="ov_pace_max_corrida_curta" class="form-control form-control-sm"
+                     placeholder="herda da cidade">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small">Pace ≥5km</label>
+              <input type="text" name="ov_pace_max_corrida_longa" class="form-control form-control-sm"
+                     placeholder="herda da cidade">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small">Vel. mín. ciclismo</label>
+              <input type="text" name="ov_velocidade_min_ciclismo" class="form-control form-control-sm"
+                     placeholder="herda da cidade">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small">Vel. máx. ciclismo</label>
+              <input type="text" name="ov_velocidade_max_ciclismo" class="form-control form-control-sm"
+                     placeholder="herda da cidade">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small">Observação</label>
+              <input type="text" name="observacao" class="form-control form-control-sm"
+                     maxlength="255" placeholder="ex.: atleta comprovadamente rápido">
+            </div>
+          </div>
+          <div class="form-text mb-2">
+            Deixe um campo em branco para o atleta herdar o limite da cidade.
+            Preencher só o pace curto, por exemplo, ajusta apenas ele.
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="fas fa-save me-1"></i>Salvar limite individual
+          </button>
+        </form>
+
+        <datalist id="atletas-datalist">
+          {% for a in atletas_lista %}
+          <option value="{{ a.strava_id }}">{{ a.nome_atual }}</option>
+          {% endfor %}
+        </datalist>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

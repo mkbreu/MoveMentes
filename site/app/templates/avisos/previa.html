@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Prévia do aviso {{ aviso.codigo }} - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-10 mx-auto">
+    <div class="card shadow mb-4">
+      <div class="card-header d-flex align-items-center justify-content-between"
+           style="background-color: #C9FF6E; color: #1a1a1a;">
+        <h4 class="mb-0"><i class="fas fa-eye me-2"></i>Prévia — {{ aviso.codigo }}</h4>
+        <a href="{{ url_for('avisos.index') }}" class="btn btn-sm btn-outline-dark">
+          <i class="fas fa-arrow-left me-1"></i>Voltar
+        </a>
+      </div>
+      <div class="card-body">
+
+        <h5 class="mb-1">{{ aviso.titulo }}</h5>
+        <p class="text-muted small">
+          Público: <strong>{{ publicos.get(aviso.publico, aviso.publico) }}</strong> ·
+          {{ 'Ativo' if aviso.ativo else 'Pausado' }}
+        </p>
+
+        {# ===== COMO VAI CHEGAR ===== #}
+        <h6 class="mt-4 border-bottom pb-2">
+          <i class="fab fa-whatsapp me-2 text-success"></i>Como a mensagem vai chegar
+        </h6>
+        <div class="p-3 mb-3" style="background:#DCF8C6; border-radius:12px; max-width:520px;">
+          {% if aviso.imagem_mime %}
+          <img src="{{ url_for('avisos.imagem', aviso_id=aviso.id) }}"
+               alt="Imagem do aviso" class="img-fluid rounded mb-2" style="max-height:260px;">
+          {% endif %}
+          <div style="white-space: pre-wrap; font-family: system-ui; color:#111;">{{ exemplo }}</div>
+        </div>
+        <p class="text-muted small">
+          Este é o texto com os dados de quem está no topo da lista. Cada pessoa recebe
+          o próprio nome no lugar de <code>{nome}</code>.
+        </p>
+
+        {# ===== QUEM RECEBE ===== #}
+        <h6 class="mt-4 border-bottom pb-2">
+          <i class="fas fa-users me-2 text-primary"></i>
+          Quem vai receber ({{ com_telefone|length }})
+        </h6>
+        {% if com_telefone %}
+        <div class="table-responsive" style="max-height: 380px; overflow-y:auto;">
+          <table class="table table-sm">
+            <thead class="table-light"><tr><th>Atleta</th><th>Telefone</th><th></th></tr></thead>
+            <tbody>
+              {% for p in com_telefone %}
+              <tr>
+                <td>{{ p.nome }}</td>
+                <td><code>{{ telefone_bonito(p.telefone) }}</code></td>
+                <td class="text-end">
+                  {% if aviso.publico == 'medalhistas' %}
+                  <form method="POST" class="d-inline"
+                        action="{{ url_for('avisos.marcar_medalha',
+                                 ano=aviso.publico_params.get('ano', 2026),
+                                 mes=aviso.publico_params.get('mes', 1),
+                                 chave=p.chave) }}">
+                    <button class="btn btn-sm btn-outline-success"
+                            title="Marcar que já retirou a medalha (para de cobrar)">
+                      <i class="fas fa-check"></i> já retirou
+                    </button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="alert alert-warning">
+          Ninguém receberia este aviso agora. Ou o público está vazio, ou falta telefone.
+        </div>
+        {% endif %}
+
+        {# ===== SEM TELEFONE ===== #}
+        {% if sem_telefone %}
+        <h6 class="mt-4 border-bottom pb-2">
+          <i class="fas fa-phone-slash me-2 text-warning"></i>
+          Ficam de fora por falta de telefone ({{ sem_telefone|length }})
+        </h6>
+        <p class="text-muted small">Complete o número e eles passam a receber.</p>
+        <div class="row g-2">
+          {% for a in sem_telefone %}
+          <div class="col-md-6">
+            <form method="POST" action="{{ url_for('avisos.gravar_telefone') }}"
+                  class="input-group input-group-sm mb-1">
+              <input type="hidden" name="chave" value="{{ a.chave }}">
+              <span class="input-group-text" style="min-width:11rem; font-size:.8rem;">
+                {{ a.nome[:20] }}
+              </span>
+              <input type="text" name="telefone" class="form-control"
+                     placeholder="(DD) 9XXXX-XXXX" required>
+              <button class="btn btn-outline-success"><i class="fas fa-check"></i></button>
+            </form>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="alert alert-info mt-4 small mb-0">
+          <i class="fas fa-clock me-1"></i>
+          O envio acontece na próxima rodada da automação (10:30 ou 22:00), respeitando
+          o horário marcado no aviso. Ninguém recebe duas vezes no mesmo dia.
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

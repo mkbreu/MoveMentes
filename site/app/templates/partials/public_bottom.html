@@ -1,0 +1,45 @@
+{# Rodapé padrão das páginas públicas: logos dos adicionais + disclaimer + QR + rodapé.
+   Requer a variável `pub` (ver ranking._public_page_context). #}
+{% if pub %}
+{# Disclaimer e logos dos patrocinadores agora ficam no topo (public_top.html). #}
+
+{% if pub.qr_pix or pub.chave_pix %}
+<div class="card shadow-sm mt-3">
+  <div class="card-header bg-success text-white">
+    <h5 class="mb-0"><i class="fas fa-donate"></i> Apoie o Projeto MoveMentes</h5>
+  </div>
+  <div class="card-body text-center">
+    <p class="mb-3">Ajude a manter o projeto ativo e premiar nossos atletas!</p>
+    {% if pub.qr_pix %}
+    <div class="mb-3">
+      <img src="{{ url_for('static', filename='images/' + pub.qr_pix) }}" alt="QR Code PIX" class="img-fluid" style="max-width: 260px;">
+    </div>
+    {% endif %}
+    {% if pub.chave_pix %}
+    <div class="input-group mb-2" style="max-width: 480px; margin: 0 auto;">
+      <input type="text" class="form-control" value="{{ pub.chave_pix }}" id="pubPixKey" readonly onfocus="this.select()">
+      <button class="btn btn-outline-secondary" type="button" onclick="pubCopyPix()">
+        <i class="fas fa-copy"></i> Copiar Chave
+      </button>
+    </div>
+    {% endif %}
+  </div>
+</div>
+<script>
+function pubCopyPix(){
+  var i=document.getElementById('pubPixKey');
+  if(!i)return;
+  if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(i.value);}
+  else{i.focus();i.select();try{document.execCommand('copy');}catch(e){}}
+}
+</script>
+{% endif %}
+
+<div class="text-center text-muted small mt-4 mb-2">
+  <div class="d-flex flex-wrap justify-content-center gap-3 mb-2">
+    {% if pub.feedback_url %}<a href="{{ pub.feedback_url }}"><i class="fas fa-comment-dots me-1"></i>Enviar feedback</a>{% endif %}
+    {% if pub.transparencia_url %}<a href="{{ pub.transparencia_url }}"><i class="fas fa-hand-holding-dollar me-1"></i>Transparência</a>{% endif %}
+  </div>
+  MoveMentes — Dados provenientes do Strava (atividades públicas)
+</div>
+{% endif %}

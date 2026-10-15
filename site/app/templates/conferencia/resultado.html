@@ -1,0 +1,259 @@
+{% extends "conferencia/base_conferencia.html" %}
+{% block titulo %}Resultado — {{ r.nome }}{% endblock %}
+{% block cabecalho %}Resultado da conferência{% endblock %}
+{% block conteudo %}
+
+<div class="card card-grande mb-3">
+  <div class="card-body d-flex align-items-center gap-3">
+    {% if r.foto_url %}
+    <img src="{{ r.foto_url }}" alt="" class="foto-atleta"
+         onerror="this.style.display='none'">
+    {% endif %}
+    <div>
+      <div class="fw-bold" style="font-size:1.3rem;">{{ r.nome }}</div>
+      <div class="text-muted">{{ r.periodo_label }} — conferido em {{ r.gerado_em }}</div>
+    </div>
+  </div>
+</div>
+
+{# Frase bem-humorada sorteada #}
+{% if r.frase %}
+<div class="alert {% if r.frase_tipo == 'ok' %}alert-success{% else %}alert-warning{% endif %} card-grande"
+     style="font-size:1.2rem; text-align:center;">
+  {{ r.frase }}
+</div>
+{% endif %}
+
+{# ===== O que já está no ranking ===== #}
+<div class="card card-grande mb-3">
+  <div class="card-header bg-success text-white" style="border-radius:14px 14px 0 0;">
+    <i class="fas fa-check-circle me-1"></i>
+    No ranking: {{ r.registradas | length }} atividade(s) — {{ "%.2f"|format(r.total_km) }} km
+  </div>
+  <div class="card-body p-0">
+    {% if r.registradas %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0" style="font-size:1.05rem;">
+        <thead class="table-light"><tr><th>Dia</th><th>Tipo</th><th class="text-end">Km</th><th></th></tr></thead>
+        <tbody>
+          {% for a in r.registradas %}
+          <tr>
+            <td>{{ a.dia }}</td>
+            <td>{{ a.modalidade }}</td>
+            <td class="text-end fw-bold">{{ "%.2f"|format(a.km) }}</td>
+            <td class="text-center">
+              <a href="{{ a.url }}" target="_blank" rel="noopener noreferrer"><i class="fab fa-strava text-danger"></i></a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="table-light fw-bold"><td colspan="2">Total no ranking</td>
+              <td class="text-end">{{ "%.2f"|format(r.total_km) }} km</td><td></td></tr>
+        </tfoot>
+      </table>
+    </div>
+    {% else %}
+    <div class="p-3 text-muted">Nenhuma atividade sua chegou ao ranking neste mês (ainda!).</div>
+    {% endif %}
+  </div>
+</div>
+
+{# ===== A conta do mês =====
+   A lista diz QUAIS atividades faltam; este total diz QUANTO falta. Ele é a
+   verdade aritmética da conferência: não depende de o sistema reconhecer cada
+   atividade uma a uma — foi a lista falhando calada que escondeu 136 km. #}
+{% if r.strava_ok and r.km_strava %}
+<div class="card card-grande mb-3">
+  <div class="card-header bg-light" style="border-radius:14px 14px 0 0;">
+    <i class="fas fa-calculator me-1"></i> A conta de {{ r.periodo_label }}
+  </div>
+  <div class="card-body" style="font-size:1.08rem;">
+    <div class="d-flex justify-content-between border-bottom py-1">
+      <span>Seu Strava mostra no mês</span>
+      <strong>{{ "%.2f"|format(r.km_strava) }} km</strong>
+    </div>
+    <div class="d-flex justify-content-between {% if not r.contas_batem %}border-bottom{% endif %} py-1">
+      <span>Já contado no ranking</span>
+      <strong>{{ "%.2f"|format(r.total_km) }} km</strong>
+    </div>
+    {% if not r.contas_batem %}
+    <div class="d-flex justify-content-between py-1 text-danger">
+      <span>Ainda sem explicação</span>
+      <strong>{{ "%.2f"|format(r.km_nao_explicado) }} km</strong>
+    </div>
+    {% endif %}
+    <div class="text-muted mt-2" style="font-size:.95rem;">
+      O total do Strava soma <strong>todas</strong> as suas atividades do mês, inclusive
+      as modalidades que o MoveMentes não conta. Uma diferença pequena é normal.
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ===== Comparação com o Strava ===== #}
+{% if r.strava_ok %}
+  {% if r.faltantes %}
+  <div class="card card-grande mb-3 border-warning">
+    <div class="card-header bg-warning" style="border-radius:14px 14px 0 0;">
+      <i class="fas fa-hand-point-right me-1"></i>
+      Encontramos no seu Strava {{ r.faltantes | length }}
+      atividade(s) que <strong>não chegaram ao grupo</strong>
+    </div>
+    <div class="card-body">
+      <p class="mb-2">
+        Fique tranquilo(a): não é erro do sistema nem km perdido. 💚
+        Essas atividades estão no seu Strava, mas o <strong>link delas não foi postado no grupo</strong> —
+        e o ranking só conta o que é postado lá.
+      </p>
+      <ul class="list-group mb-3">
+        {% for f in r.faltantes %}
+        <li class="list-group-item" style="font-size:1.05rem;">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span>
+              {% if f.dia %}Atividade do dia <strong>{{ f.dia }}</strong>{% else %}Atividade{% endif %}
+              {% if f.km %} — {{ "%.2f"|format(f.km) }} km{% endif %}
+              {% if f.modalidade %} ({{ f.modalidade }}){% endif %}
+            </span>
+            <span class="d-flex gap-2">
+              <a class="btn btn-outline-danger btn-sm" href="{{ f.url }}" target="_blank" rel="noopener noreferrer">
+                <i class="fab fa-strava me-1"></i>Abrir
+              </a>
+              {% if lancar_restantes > 0 %}
+              <button type="button" class="btn btn-success btn-sm btn-lancar" data-url="{{ f.url }}">
+                <i class="fas fa-paper-plane me-1"></i>Lançar no ranking
+              </button>
+              {% endif %}
+            </span>
+          </div>
+        </li>
+        {% endfor %}
+        {% if r.faltantes_sem_detalhe %}
+        <li class="list-group-item text-muted">
+          Outras {{ r.faltantes_sem_detalhe }} atividade(s) não puderam ser verificadas agora —
+          confira de novo mais tarde.
+        </li>
+        {% endif %}
+      </ul>
+
+      {% if lancar_restantes > 0 %}
+      <div class="alert alert-info mb-2" style="font-size:1.02rem;">
+        <i class="fas fa-bolt me-1"></i>
+        Se quiser, toque em <strong>Lançar no ranking</strong> para já incluir a atividade agora
+        (você pode lançar até <strong>{{ lancar_restantes }}</strong> nesta conferência).
+        O ideal, mesmo, é <strong>postar o link no grupo</strong> — é lá que a turma vê seu esforço e se anima. 💪
+      </div>
+      {% else %}
+      <div class="alert alert-warning mb-2" style="font-size:1.02rem;">
+        <i class="fas fa-circle-info me-1"></i>
+        Você já lançou o máximo de {{ lancar_max }} links por aqui. Os demais, é só
+        <strong>postar no grupo do WhatsApp</strong> — na próxima coleta o sistema pega sozinho. 👟
+      </div>
+      {% endif %}
+
+      <div class="alert alert-success mb-0" style="font-size:1.02rem;">
+        <strong>Como resolver do jeito certo:</strong> abra cada atividade, toque em
+        <strong>Compartilhar</strong> no Strava e <strong>poste o link no grupo do WhatsApp</strong>.
+        Na próxima coleta o sistema pega os km automaticamente. 👟🚴
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    var url = "{{ url_for('conferencia.lancar_faltante', city_slug=city_slug) }}";
+    document.querySelectorAll('.btn-lancar').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        btn.disabled = true;
+        var original = btn.innerHTML;
+        btn.innerHTML = 'Lançando...';
+        try {
+          var r = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({
+              sid: "{{ r.sid }}", periodo: "{{ r.periodo }}", url: btn.dataset.url,
+            }),
+          });
+          var data = await r.json();
+          if (data.ok) {
+            btn.className = 'btn btn-outline-success btn-sm';
+            btn.innerHTML = '<i class="fas fa-check me-1"></i>Lançado';
+            alert(data.message || 'Link lançado!');
+          } else {
+            btn.disabled = false; btn.innerHTML = original;
+            alert(data.error || 'Não foi possível lançar.');
+            if (data.limite) location.reload();
+          }
+        } catch (e) {
+          btn.disabled = false; btn.innerHTML = original;
+          alert('Falha de conexão. Tente de novo.');
+        }
+      });
+    });
+  }());
+  </script>
+  {% elif r.faltantes_sem_detalhe %}
+  <div class="alert alert-secondary card-grande" style="font-size:1.05rem;">
+    <i class="fas fa-info-circle me-1"></i>
+    Não achamos nenhum link seu faltando, mas {{ r.faltantes_sem_detalhe }} atividade(s)
+    não puderam ser verificadas agora. Confira de novo mais tarde.
+  </div>
+  {% elif r.contas_batem %}
+  <div class="alert alert-success card-grande" style="font-size:1.1rem;">
+    <i class="fas fa-medal me-1"></i>
+    <strong>Tudo certo!</strong> Todas as atividades do seu Strava em {{ r.periodo_label }}
+    estão contadas no ranking. Nenhum link ficou de fora. 👏
+  </div>
+  {% else %}
+  {# Nem "tudo certo" nem acusação de falta: o total do Strava tem km que a lista
+     não explicou. Prometer que está tudo certo aqui seria repetir o erro que
+     custou 136 km a uma atleta. #}
+  <div class="alert alert-warning card-grande" style="font-size:1.08rem;">
+    <i class="fas fa-triangle-exclamation me-1"></i>
+    <strong>As contas não fecharam por pouco.</strong>
+    O seu Strava mostra <strong>{{ "%.2f"|format(r.km_nao_explicado) }} km</strong> a mais
+    do que conseguimos explicar, e não descobrimos qual atividade é. Pode ser uma
+    modalidade que o ranking não conta (natação, por exemplo) — ou um link que ficou
+    de fora. Abra um pedido de revisão logo abaixo que a gente confere pra você. 💚
+  </div>
+  {% endif %}
+  {% if r.feedback_url %}
+  <div class="card card-grande mb-3">
+    <div class="card-body" style="font-size:1.05rem;">
+      Ainda acha que a conta não está batendo? Sem problema — a gente confere pra você.
+      Abra um <strong>pedido de revisão</strong> que analisamos com carinho:
+      <div class="mt-2">
+        <a href="{{ r.feedback_url }}" target="_blank" rel="noopener noreferrer"
+           class="btn btn-outline-primary">
+          <i class="fas fa-comment-dots me-1"></i>Sugestões, elogios ou pedido de revisão
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+{% else %}
+  <div class="alert alert-secondary card-grande" style="font-size:1.05rem;">
+    <i class="fas fa-info-circle me-1"></i>
+    {% if r.erro_strava == 'formato' %}
+    Não conseguimos ler a sua lista de atividades no Strava agora: a página chegou,
+    mas em um formato que o sistema ainda não entende. A administração já foi avisada.
+    A lista acima mostra o que está no ranking — <strong>ela continua correta</strong>.
+    {% elif r.erro_strava == 'limite' %}
+    O Strava pediu uma pausa nas consultas. A lista acima (o que está no ranking) está correta;
+    tente comparar com o Strava de novo daqui a alguns minutos.
+    {% elif r.erro_strava == 'rede' %}
+    A internet oscilou durante a consulta ao Strava. A lista acima está correta;
+    tente de novo em instantes.
+    {% else %}
+    Não foi possível comparar com o Strava agora (conexão do sistema em manutenção).
+    A lista acima mostra o que está no ranking; avise a administração para reativar a comparação.
+    {% endif %}
+  </div>
+{% endif %}
+
+<a href="{{ url_for('conferencia.pagina', city_slug=city_slug) }}" class="btn btn-outline-secondary btn-conferir w-100 mt-2">
+  <i class="fas fa-rotate-left me-1"></i>Conferir outro mês ou outra pessoa
+</a>
+{% endblock %}

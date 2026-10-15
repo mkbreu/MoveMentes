@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block title %}Medalhistas - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="row"><div class="col-lg-11 mx-auto">
+
+  <div class="card shadow mb-4">
+    <div class="card-header d-flex align-items-center justify-content-between"
+         style="background-color: #C9FF6E; color: #1a1a1a;">
+      <h4 class="mb-0"><i class="fas fa-medal me-2"></i>Medalhistas</h4>
+      <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-dark">
+        <i class="fas fa-arrow-left me-1"></i>Voltar
+      </a>
+    </div>
+    <div class="card-body">
+
+      <p class="text-muted small">
+        Quem bateu a meta em cada mês. Aqui você avisa quem ainda não sabe,
+        marca quem já retirou e acompanha quem está acumulando medalha sem pegar.
+        A lista é a mesma que a tela de
+        <a href="{{ url_for('admin.etiquetas', ano=ano, mes=mes) }}">etiquetas</a>
+        usa — atualizar aqui atualiza lá.
+      </p>
+
+      {# ===== MÊS ===== #}
+      <form method="get" class="row g-2 align-items-end mb-3">
+        <div class="col-auto">
+          <label class="form-label small mb-1">Mês</label>
+          <select name="mes" class="form-select form-select-sm">
+            {% for numero, nome in meses.items() %}
+              <option value="{{ numero }}" {% if numero == mes %}selected{% endif %}>{{ nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <label class="form-label small mb-1">Ano</label>
+          <select name="ano" class="form-select form-select-sm">
+            {% for a in anos %}
+              <option value="{{ a }}" {% if a == ano %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-sm btn-dark">Ver este mês</button>
+        </div>
+      </form>
+
+      {# ===== ENDEREÇO DE ENTREGA DESTE MÊS (13/08) =====
+         Nasce copiado da ficha do patrocinador e pode ser mudado AQUI sem
+         tocar no cadastro dele. É este endereço que a mensagem usa. Fica ANTES
+         dos botões de enviar de propósito: é aqui que o admin decide mandar,
+         então é aqui que ele precisa ver o que vai dentro. #}
+      <div class="card mb-3 {% if local_mes.endereco %}border-success{% else %}border-warning{% endif %}">
+        <div class="card-body py-2">
+          <details {% if not local_mes.endereco %}open{% endif %}>
+            <summary class="small fw-bold" style="cursor:pointer;">
+              <i class="fas fa-map-marker-alt me-1 text-danger"></i>
+              Onde retirar as medalhas de {{ meses.get(mes, mes) }}/{{ ano }}
+              {% if local_mes.endereco %}
+                <span class="badge bg-success ms-1">endereço definido</span>
+                {% if local_mes.proprio %}<span class="badge bg-info text-dark">próprio deste mês</span>
+                {% else %}<span class="badge bg-secondary">da ficha do patrocinador</span>{% endif %}
+              {% else %}
+                <span class="badge bg-danger ms-1">sem endereço — a mensagem sai incompleta</span>
+              {% endif %}
+            </summary>
+
+            <form method="POST" class="row g-2 mt-2">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="acao" value="salvar_local_mes">
+              <input type="hidden" name="ano" value="{{ ano }}">
+              <input type="hidden" name="mes" value="{{ mes }}">
+              <div class="col-md-3">
+                <label class="form-label small">Estabelecimento</label>
+                <input type="text" name="estabelecimento" class="form-control form-control-sm"
+                       value="{{ local_mes.estabelecimento or '' }}">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small">Endereço</label>
+                <input type="text" name="endereco" class="form-control form-control-sm"
+                       value="{{ local_mes.endereco or '' }}"
+                       placeholder="Av. Principal, 123 - Centro">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">Link do Google Maps</label>
+                <input type="text" name="maps_url" class="form-control form-control-sm"
+                       value="{{ local_mes.maps_url or '' }}"
+                       placeholder="https://maps.app.goo.gl/...">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small">Horário</label>
+                <input type="text" name="horario" class="form-control form-control-sm"
+                       value="{{ local_mes.horario or '' }}" placeholder="8h às 18h">
+              </div>
+              <div class="col-12">
+                <button class="btn btn-sm btn-outline-danger">
+                  <i class="fas fa-save me-1"></i>Salvar endereço deste mês
+                </button>
+                <span class="small text-muted ms-2">
+                  Vem preenchido da
+                  <a href="{{ url_for('ranking.patrocinadores') }}">ficha do patrocinador</a>.
+                  Mudar aqui vale <strong>só para {{ meses.get(mes, mes) }}/{{ ano }}</strong> —
+                  a ficha dele não é alterada.
+                </span>
+              </div>
+            </form>
+          </details>
+        </div>
+      </div>
+
+      {# ===== RESUMO E AÇÕES ===== #}
+      <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+        <span class="badge bg-dark">{{ itens|length }} medalhista{{ 's' if itens|length != 1 }}</span>
+        <span class="badge bg-primary">{{ a_avisar|length }} a avisar</span>
+        <span class="badge bg-success">{{ retiradas|length }} já retirou</span>
+        {% if sem_telefone %}
+          <span class="badge bg-warning text-dark">{{ sem_telefone|length }} sem telefone</span>
+        {% endif %}
+
+        <div class="ms-auto d-flex gap-2">
+          <form method="post" class="d-inline">
+            <input type="hidden" name="acao" value="atualizar">
+            <input type="hidden" name="ano" value="{{ ano }}">
+            <input type="hidden" name="mes" value="{{ mes }}">
+            <button class="btn btn-sm btn-outline-dark"
+                    title="Refaz a lista com os km de agora. Vale também para as etiquetas.">
+              <i class="fas fa-rotate me-1"></i>Atualizar lista
+            </button>
+          </form>
+          {% set nao_retiraram = itens|rejectattr('retirada')|selectattr('telefone')|list %}
+          {% if nao_retiraram %}
+          <form method="post" class="d-inline"
+                onsubmit="return confirm('Mandar a cobrança da medalha para {{ nao_retiraram|length }} pessoa(s) que ainda não retiraram — inclusive quem já foi avisado?');">
+            <input type="hidden" name="acao" value="cobrar_todos">
+            <input type="hidden" name="ano" value="{{ ano }}">
+            <input type="hidden" name="mes" value="{{ mes }}">
+            <button class="btn btn-sm btn-warning">
+              <i class="fas fa-bullhorn me-1"></i>Cobrar quem não retirou ({{ nao_retiraram|length }})
+            </button>
+          </form>
+          {% endif %}
+          {% if a_avisar %}
+          <form method="post" class="d-inline"
+                onsubmit="return confirm('Colocar {{ a_avisar|length }} aviso(s) na fila?');">
+            <input type="hidden" name="acao" value="enviar_faltantes">
+            <input type="hidden" name="ano" value="{{ ano }}">
+            <input type="hidden" name="mes" value="{{ mes }}">
+            <button class="btn btn-sm btn-success">
+              <i class="fab fa-whatsapp me-1"></i>Avisar quem falta ({{ a_avisar|length }})
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if sem_telefone %}
+      <div class="alert alert-warning py-2 px-3 small">
+        <strong>{{ sem_telefone|length }}</strong> sem telefone — o aviso não chega
+        nessas pessoas. Cadastre em
+        <a href="{{ url_for('admin.telefones_atletas') }}">Telefones</a>.
+      </div>
+      {% endif %}
+
+      {# ===== A LISTA ===== #}
+      {% if not itens %}
+        <p class="text-muted">
+          Ninguém bateu a meta neste mês — ou a lista ainda não foi tirada.
+          Clique em <em>Atualizar lista</em> para conferir com os km de agora.
+        </p>
+      {% else %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>Quem</th>
+              <th>Telefone</th>
+              <th>Aviso</th>
+              <th>Retirou?</th>
+              <th class="text-end">Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for i in itens %}
+            <tr {% if i.retirada %}class="table-light text-muted"{% endif %}>
+              <td>
+                {{ i.nome }}
+                {% if i.acumuladas >= 2 %}
+                  <span class="badge bg-danger ms-1"
+                        title="Tem {{ i.acumuladas }} medalhas sem retirar">
+                    {{ i.acumuladas }} acumuladas
+                  </span>
+                {% endif %}
+                <div class="small text-muted">
+                  {{ '%.2f'|format(i.km) }} km · {{ i.modalidades|join(', ') }}
+                </div>
+              </td>
+              <td class="small">
+                {% if i.telefone %}{{ i.telefone }}
+                {% else %}<span class="text-warning">sem telefone</span>{% endif %}
+              </td>
+              <td>
+                {% if i.aviso %}
+                  <span class="badge bg-success">{{ i.aviso }}</span>
+                {% endif %}
+                {% if i.envios %}
+                  <span class="badge {{ 'bg-danger' if i.envios >= 2 else 'bg-warning text-dark' }}"
+                        title="Quantas vezes o aviso já saiu para esta pessoa">já recebeu {{ i.envios }}x</span>
+                {% elif not i.aviso %}
+                  <span class="badge bg-secondary">não avisado</span>
+                {% endif %}
+              </td>
+              <td>
+                <form method="post" class="d-inline">
+                  <input type="hidden" name="acao"
+                         value="{{ 'nao_retirou' if i.retirada else 'retirou' }}">
+                  <input type="hidden" name="chave" value="{{ i.chave }}">
+                  <input type="hidden" name="ano" value="{{ ano }}">
+                  <input type="hidden" name="mes" value="{{ mes }}">
+                  <button class="btn btn-sm {{ 'btn-success' if i.retirada else 'btn-outline-secondary' }}"
+                          title="{{ 'Marcado como retirada — clique para desfazer' if i.retirada else 'Marcar que já retirou' }}">
+                    <i class="fas {{ 'fa-check' if i.retirada else 'fa-square' }}"></i>
+                    {{ 'Retirou' if i.retirada else 'Marcar' }}
+                  </button>
+                </form>
+              </td>
+              <td class="text-end">
+                {% if i.telefone and not i.retirada %}
+                <form method="post" class="d-inline"
+                      {% if i.envios %}onsubmit="return confirm('Esta pessoa já recebeu o aviso {{ i.envios }}x. Mandar de novo?');"{% endif %}>
+                  <input type="hidden" name="acao" value="enviar">
+                  <input type="hidden" name="chave" value="{{ i.chave }}">
+                  <input type="hidden" name="ano" value="{{ ano }}">
+                  <input type="hidden" name="mes" value="{{ mes }}">
+                  <button class="btn btn-sm btn-outline-success">
+                    <i class="fab fa-whatsapp me-1"></i>{{ 'Avisar de novo' if i.aviso else 'Avisar' }}
+                  </button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      <p class="small text-muted mt-3 mb-0">
+        <strong>Acumuladas</strong> conta as medalhas que a pessoa tem sem retirar
+        em todos os meses, não só neste. Duas ou mais é sinal de que o aviso não
+        está chegando nela — vale conferir o telefone antes de mandar de novo.
+      </p>
+
+    </div>
+  </div>
+
+</div></div>
+{% endblock %}

@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Quero participar — MoveMentes{% endblock %}
+
+{% block content %}
+<style>
+  .ad-cabeca { background: linear-gradient(135deg, #1c2b13 0%, #4a7328 100%);
+               color: #fff; border-radius: 14px; padding: 1.8rem 1.4rem; text-align: center; }
+  .ad-cabeca h1 { font-size: clamp(1.5rem,4.5vw,2.1rem); font-weight: 700; margin-bottom: .3rem; }
+  .ad-resumo li { margin-bottom: .7rem; }
+  .ad-resumo b { display: block; }
+  .ad-caixa { border: 1px solid #dde3d3; border-radius: 10px; padding: 1rem; margin-bottom: .9rem; }
+  .ad-caixa-obrig { border-color: #4a7328; background: #f7fbef; }
+  .ad-caixa small.ad-op { color: #6c757d; font-weight: 600; text-transform: uppercase;
+                          letter-spacing: .05em; font-size: .68rem; }
+</style>
+
+<div class="container" style="max-width: 760px;">
+
+  <div class="ad-cabeca mb-4">
+    <h1>Solicite sua participação</h1>
+    <p class="mb-0" style="opacity:.9;">
+      Gratuito, aberto a qualquer pessoa da sua cidade. A entrada é livre:
+      você pede, recebe o link e entra no grupo de WhatsApp — é lá que os
+      quilômetros acontecem.
+    </p>
+  </div>
+
+  {# O resumo vem ANTES do formulário de propósito: quem chega tem de saber no
+     que está entrando antes de digitar o telefone, não depois. #}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white py-3">
+      <strong><i class="fas fa-circle-info text-success"></i> Em poucas linhas, o que você está aceitando</strong>
+    </div>
+    <div class="card-body">
+      <ul class="ad-resumo list-unstyled mb-2">
+        {% for titulo, detalhe in resumo %}
+        <li><b>{{ titulo }}</b><span class="text-muted small">{{ detalhe }}</span></li>
+        {% endfor %}
+      </ul>
+      <a href="{{ url_for('adesao.termos') }}" target="_blank" rel="noopener">
+        Ler os termos completos (versão {{ versao }})
+      </a>
+    </div>
+  </div>
+
+  <form method="POST" action="{{ url_for('adesao.inscrever') }}" class="card shadow-sm mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="card-body">
+
+      <div class="mb-3">
+        <label class="form-label" for="nome">Seu nome completo</label>
+        <input class="form-control" id="nome" name="nome" required
+               value="{{ dados.nome or '' }}" autocomplete="name">
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-6">
+          <label class="form-label" for="cidade">Escolha a cidade onde você mora</label>
+          <select class="form-select" id="cidade" name="cidade" required>
+            <option value="">Escolha…</option>
+            {% for c in cidades %}
+              <option value="{{ c }}" {{ 'selected' if dados.cidade == c }}>{{ c }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">
+            O link do grupo que você vai receber é o dela — o ideal é
+            participar de uma cidade só.
+          </div>
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label" for="telefone">Telefone com DDD</label>
+          <input class="form-control" id="telefone" name="telefone" required
+                 placeholder="DD 9XXXX-XXXX" value="{{ dados.telefone or '' }}"
+                 autocomplete="tel">
+          <div class="form-text">É por ele que avisamos quando a sua medalha estiver pronta.</div>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label" for="link_strava">
+          Link do seu perfil no Strava <span class="text-muted">(opcional)</span>
+        </label>
+        <input type="url" class="form-control" id="link_strava" name="link_strava"
+               placeholder="https://www.strava.com/athletes/12345678"
+               value="{{ dados.link_strava or '' }}">
+        <div class="form-text">
+          Ajuda o sistema a já ligar o seu telefone ao seu perfil. Vá em "Eu"
+          no Strava e copie o endereço da página — não precisa ser o link de
+          uma atividade.
+        </div>
+      </div>
+
+      <hr>
+
+      {# ---------- o aceite obrigatório ---------- #}
+      <div class="ad-caixa ad-caixa-obrig">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="aceite" name="aceite_participacao"
+                 value="sim" required>
+          <label class="form-check-label" for="aceite">
+            <strong>Quero participar do MoveMentes</strong> e aceito os
+            <a href="{{ url_for('adesao.termos') }}" target="_blank" rel="noopener">termos de uso
+            (versão {{ versao }})</a>. Entendo que os meus quilômetros entram no
+            ranking do grupo da minha cidade.
+          </label>
+        </div>
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="idade" name="idade_ok"
+                 value="sim" required>
+          <label class="form-check-label" for="idade">
+            Tenho <strong>{{ idade_minima }} anos ou mais</strong>.
+            <span class="text-muted small d-block">
+              Menor de {{ idade_minima }}? fale com a organização — dá para
+              participar com autorização de quem responde por você.
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="alert alert-light border small d-flex gap-2 align-items-start">
+        <i class="fas fa-heart-pulse text-success mt-1"></i>
+        <div>
+          <strong>Respeite os seus limites.</strong> O objetivo é se movimentar
+          com saúde, não competir. Procure orientação profissional antes de
+          aumentar o ritmo, e reduza quando o corpo pedir.
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-success w-100 py-2">
+        <i class="fas fa-user-plus"></i> Concluir a minha inscrição
+      </button>
+    </div>
+  </form>
+
+  <p class="text-center">
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="fas fa-house"></i> Voltar ao início
+    </a>
+  </p>
+</div>
+{% endblock %}

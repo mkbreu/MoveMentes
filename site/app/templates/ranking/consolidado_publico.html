@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Números do projeto — MoveMentes{% endblock %}
+
+{% macro km(v) -%}
+{{ '{:,.1f}'.format(v).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+{%- endmacro %}
+
+{% macro num(v) -%}
+{{ '{:,}'.format(v).replace(',', '.') }}
+{%- endmacro %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 980px;">
+
+  <h1 class="display-6 text-center mb-1">
+    <i class="fas fa-chart-line text-success"></i> Números do projeto
+  </h1>
+  <p class="lead text-center text-muted mb-1">
+    {% if cidade %}{{ cidade }}{% else %}MoveMentes — todas as cidades{% endif %}
+  </p>
+  <p class="text-center text-muted small mb-4">
+    Mover o corpo para mover a mente. Atividade física e educação nutricional
+    para o bem-estar da comunidade.
+  </p>
+
+  {# ---------- os quatro números que resumem tudo ---------- #}
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+      <div class="card shadow-sm h-100 text-center">
+        <div class="card-body py-3">
+          <div class="display-6 fw-bold text-success">{{ km(d.total_km) }}</div>
+          <div class="text-muted small text-uppercase">quilômetros</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card shadow-sm h-100 text-center">
+        <div class="card-body py-3">
+          <div class="display-6 fw-bold">{{ num(d.total_atividades) }}</div>
+          <div class="text-muted small text-uppercase">atividades</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card shadow-sm h-100 text-center">
+        <div class="card-body py-3">
+          <div class="display-6 fw-bold">{{ num(d.total_atletas) }}</div>
+          <div class="text-muted small text-uppercase">pessoas</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card shadow-sm h-100 text-center">
+        <div class="card-body py-3">
+          <div class="display-6 fw-bold">
+            {% if d.primeira_atividade %}{{ d.primeira_atividade.strftime('%m/%Y') }}{% else %}—{% endif %}
+          </div>
+          <div class="text-muted small text-uppercase">desde</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ---------- filtros de período ---------- #}
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <p class="fw-semibold mb-2"><i class="fas fa-calendar-days text-muted"></i> Período</p>
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        {% for chave, rotulo in [('tudo', 'Desde o começo'), ('ano', 'Este ano'),
+                                 ('semestre', 'Este semestre'), ('trimestre', 'Este trimestre'),
+                                 ('mes', 'Este mês')] %}
+          <a class="btn btn-sm {{ 'btn-success' if d.periodo == chave else 'btn-outline-secondary' }}"
+             href="{{ url_for('ranking.consolidado_publico', city_slug=city_slug, periodo=chave) }}">
+            {{ rotulo }}
+          </a>
+        {% endfor %}
+      </div>
+
+      <form method="get" class="row g-2 align-items-end">
+        <input type="hidden" name="periodo" value="livre">
+        <div class="col-6 col-md-4">
+          <label class="form-label small mb-1" for="de">De</label>
+          <input type="date" class="form-control form-control-sm" id="de" name="de"
+                 value="{{ d.inicio.isoformat() if d.periodo == 'livre' and d.inicio else '' }}">
+        </div>
+        <div class="col-6 col-md-4">
+          <label class="form-label small mb-1" for="ate">Até</label>
+          <input type="date" class="form-control form-control-sm" id="ate" name="ate"
+                 value="{{ d.fim.isoformat() if d.periodo == 'livre' and d.fim else '' }}">
+        </div>
+        <div class="col-12 col-md-4">
+          <button type="submit" class="btn btn-sm btn-outline-success w-100">
+            <i class="fas fa-filter"></i> Ver este período
+          </button>
+        </div>
+      </form>
+
+      {% if d.inicio and d.fim %}
+      <p class="text-muted small mb-0 mt-2">
+        Mostrando de <strong>{{ d.inicio.strftime('%d/%m/%Y') }}</strong>
+        a <strong>{{ d.fim.strftime('%d/%m/%Y') }}</strong>.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ---------- cidades ---------- #}
+  {% if not cidade %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header"><strong><i class="fas fa-city text-muted"></i> Por cidade</strong></div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0 align-middle">
+        <thead class="table-light">
+          <tr><th>Cidade</th><th class="text-end">Km</th><th class="text-end">Atividades</th><th class="text-end">Pessoas</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for c in d.por_cidade %}
+          <tr>
+            <td>{{ c.cidade }}</td>
+            <td class="text-end">{{ km(c.km) }}</td>
+            <td class="text-end">{{ num(c.atividades) }}</td>
+            <td class="text-end">{{ num(c.atletas) }}</td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-outline-secondary"
+                 href="{{ url_for('ranking.consolidado_publico', city_slug=slug(c.cidade), periodo=d.periodo) }}">Ver só esta</a>
+            </td>
+          </tr>
+          {% endfor %}
+          {% for c in cidades_em_implantacao %}
+          <tr class="text-muted">
+            <td>{{ c }} <span class="badge bg-secondary">em implantação</span></td>
+            <td class="text-end">—</td><td class="text-end">—</td><td class="text-end">—</td><td></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if d.por_cidade|length > 1 %}
+    <div class="card-footer small text-muted">
+      Uma mesma atividade pode pertencer a duas cidades quando o atleta participa
+      das duas. No total geral ela conta <strong>uma vez só</strong>; por isso a
+      soma das linhas acima pode passar do total.
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ---------- modalidade ---------- #}
+  <div class="row g-3 mb-4">
+    {% for m in d.por_modalidade %}
+    <div class="col-md-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="mb-1 text-muted small text-uppercase">{{ m.titulo }}</p>
+          <div class="h3 mb-0">{{ km(m.km) }} <span class="fs-6 text-muted">km</span></div>
+          <div class="small text-muted">{{ num(m.atividades) }} atividades</div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ---------- por ano ---------- #}
+  {% if d.por_ano %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header"><strong><i class="fas fa-clock-rotate-left text-muted"></i> Ano a ano</strong></div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead class="table-light"><tr><th>Ano</th><th class="text-end">Km</th><th class="text-end">Atividades</th></tr></thead>
+        <tbody>
+          {% for a in d.por_ano %}
+          <tr><td>{{ a.ano }}</td><td class="text-end">{{ km(a.km) }}</td><td class="text-end">{{ num(a.atividades) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ---------- km por atleta ---------- #}
+  {% if d.atletas %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header"><strong><i class="fas fa-person-running text-muted"></i> Quilômetros por pessoa, no período</strong></div>
+    <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+      <table class="table table-sm table-striped mb-0">
+        <thead class="table-light"><tr><th style="width:3rem;">#</th><th>Pessoa</th><th class="text-end">Km</th><th class="text-end">Atividades</th></tr></thead>
+        <tbody>
+          {% for a in d.atletas %}
+          <tr><td>{{ a.posicao }}</td><td>{{ a.nome }}</td><td class="text-end">{{ km(a.km) }}</td><td class="text-end">{{ num(a.atividades) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ---------- de onde vem cada quilômetro ---------- #}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header"><strong><i class="fas fa-link text-muted"></i> De onde vêm estes quilômetros</strong></div>
+    <div class="card-body">
+      <p class="mb-2">
+        <strong>{{ km(d.origem.link_no_grupo) }} km</strong> vieram de link que a
+        pessoa postou no grupo da cidade.
+      </p>
+      <p class="mb-0">
+        <strong>{{ km(d.origem.historico_strava) }} km</strong> vieram do
+        histórico de quem participa ou já participou do grupo — quilômetro
+        real, da mesma pessoa.
+      </p>
+    </div>
+  </div>
+
+  <p class="text-center text-muted small">
+    O projeto tem uma verificação automática contra fraude, que funciona e é
+    aplicada — e o próprio Strava também sinaliza atividade suspeita. Por
+    isso, algumas atividades não entram nesta conta.
+    <br>Quem posta um link no grupo entra automaticamente na lista de
+    atletas; quem sai, o histórico continua contando. Quem não quiser que os
+    seus quilômetros apareçam aqui pode pedir a retirada — fale com
+    <a href="mailto:{{ dado_local('contato_email') }}">{{ dado_local('contato_email') }}</a>.
+    {% if not cidade %}
+    <br>Endereço fixo desta página:
+    <code>{{ url_for('ranking.consolidado_publico', _external=True) }}</code>
+    {% endif %}
+  </p>
+
+  <div class="text-center mt-4">
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="fas fa-house"></i> Início
+    </a>
+  </div>
+
+</div>
+{% endblock %}

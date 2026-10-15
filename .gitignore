@@ -1,0 +1,42 @@
+# --- Python / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# --- SITE: dados e segredos de cada instalacao (nunca vao para o git)
+site/instance/
+site/uploads/
+site/temp_extract/
+site/logs/
+*.db
+*.db-*
+*.log
+
+# --- AUTOMACAO: dados, sessoes e segredos de cada instalacao (nunca vao para o git)
+.env
+*.env
+automacao/.env
+automacao/logs/
+automacao/postgres-data/
+automacao/waha/
+automacao/copias-sessao/
+automacao/estado-pareamento/
+automacao/backups/
+automacao/.jid_cache.json
+automacao/.instancias.json
+automacao/.send_ranking*
+automacao/.ultima_comparacao
+automacao/scripts/.send_ranking*
+
+# --- chaves e certificados
+*.pem
+*.key
+*.crt
+
+# --- editor / sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

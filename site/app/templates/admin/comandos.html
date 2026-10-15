@@ -1,0 +1,455 @@
+{% extends "base.html" %}
+
+{% block title %}Comandos do Sistema - MoveMentes{% endblock %}
+
+{#
+  ATUALIZADA EM 20/08/2026, depois dos dias 16 a 20.
+
+  O que estava aqui apontava para um sistema que não existe mais: container
+  `auto-waha` (hoje são dois, `auto-waha-principal-pls` e `-suplente-pls`),
+  sessão `default` (hoje `principal-pls`), timers systemd que foram removidos,
+  e caminhos de script sem a pasta `MOVIMENTE`. Pior: trazia a chave da API do
+  WAHA escrita no meio do texto — numa página que ensina a mexer no servidor
+  inteiro.
+
+  A ordem agora é a de quem está com problema, não a de quem já sabe o que
+  procurar: começa pelo comando que responde "está tudo no jeito?" e só depois
+  desce para cada peça.
+#}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="card shadow mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between" style="background-color: #C9FF6E; color: #1a1a1a;">
+                <h4 class="mb-0"><i class="fas fa-terminal me-2"></i>Comandos do Sistema — Admin Master</h4>
+                <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-dark">
+                    <i class="fas fa-arrow-left me-1"></i>Voltar
+                </a>
+            </div>
+            <div class="card-body">
+
+                <div class="alert alert-warning">
+                    <i class="fas fa-shield-alt me-2"></i>
+                    Só o dono da instalação vê esta página. Os comandos mexem no
+                    servidor inteiro.
+                    <strong>Nenhuma senha ou chave aparece aqui</strong> — quando um
+                    comando precisar de uma, ele a lê sozinho do
+                    <code>.env</code> da máquina.
+                </div>
+
+                <div class="alert alert-secondary small mb-4">
+                    <strong>Onde cada coisa roda.</strong>
+                    Comandos que começam com <code>powershell</code> ou <code>wsl</code>
+                    são do <strong>computador da automação</strong> (o Dell) — abra o
+                    PowerShell lá.
+                    Os que começam com <code>tail</code>, <code>curl</code> ou
+                    <code>sudo</code> são do <strong>servidor do site</strong> (o
+                    Synology) — entre por SSH.
+                </div>
+
+                {# ==================================================== #}
+                <h5 class="mt-4 border-bottom pb-2">
+                    <i class="fas fa-stethoscope me-2 text-danger"></i>1. Primeiro socorro — comece por aqui
+                </h5>
+                {# ==================================================== #}
+
+                <label class="form-label small fw-bold">Está tudo no jeito? (confere sem alterar nada):</label>
+                <div class="cmd-block">
+                    <code>powershell -ExecutionPolicy Bypass -File "C:\Users\USUARIO\Documents\SCRIPTS\MOVIMENTE\MoveMentes_Conferir_Tudo.ps1"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    Confere de uma vez: sintaxe de todos os scripts, privilégio e
+                    limite de tempo de cada tarefa do Agendador, a parada limpa do
+                    desligamento, a ponte de rede e os scripts Python do WSL.
+                    <strong>Não liga o WSL</strong> só para conferir — cada arranque é
+                    uma chance de perder a sessão.
+                </p>
+
+                <label class="form-label small fw-bold">Conferir <u>e consertar</u> o que estiver fora do lugar:</label>
+                <div class="cmd-block">
+                    <code>powershell -ExecutionPolicy Bypass -File "C:\Users\USUARIO\Documents\SCRIPTS\MOVIMENTE\MoveMentes_Conferir_Tudo.ps1" -Corrigir</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    Pede elevação sozinho. Ajusta privilégio das tarefas, limites de
+                    tempo, o script da política de desligamento e a ponte de rede.
+                </p>
+
+                <label class="form-label small fw-bold">A automação está pronta para publicar agora? (lê o grupo de verdade):</label>
+                <div class="cmd-block">
+                    <code>wsl -d Debian -u USUARIO -- bash -lc "cd /home/USUARIO/movimente-automacao &amp;&amp; ./.venv/bin/python scripts/prontidao.py"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-4">
+                    Etapa por etapa: container &rarr; API &rarr; saúde &rarr; sessão
+                    <code>WORKING + CONNECTED</code> &rarr; cópia gravada &rarr;
+                    <strong>o grupo responde à leitura</strong>. A última é a única que
+                    pega o caso em que o status mente: sessão <code>WORKING</code> com o
+                    navegador morto por trás, que devolve HTTP 500 ao ler o grupo.
+                </p>
+
+                {# ==================================================== #}
+                <h5 class="mt-4 border-bottom pb-2">
+                    <i class="fab fa-whatsapp me-2 text-success"></i>2. A sessão do WhatsApp
+                </h5>
+                {# ==================================================== #}
+
+                <div class="alert alert-danger small">
+                    <strong>Nunca reinicie uma sessão em <code>FAILED</code>.</strong>
+                    Nesse estado o WhatsApp já desvinculou o aparelho do lado dele:
+                    reiniciar não traz de volta e ainda <em>pede para apagar a cópia</em>
+                    — que é justamente o que permitiria repor sem o celular. Foi o que
+                    aconteceu em 19/08 às 19:50.
+                </div>
+
+                <label class="form-label small fw-bold">Qual sessão está de pé, e em que estado:</label>
+                <div class="cmd-block">
+                    <code>wsl -d Debian -u USUARIO -- bash -lc "cd /home/USUARIO/movimente-automacao &amp;&amp; ./.venv/bin/python scripts/wahasessao.py"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    Responde <code>nome|status|estado|quantas</code>. Só vale
+                    <code>WORKING</code> <u>com</u> <code>CONNECTED</code>.
+                    <code>SCAN_QR_CODE</code> = precisa parear.
+                    <code>FAILED</code> = o WhatsApp desvinculou.
+                    Este é o único lugar que decide qual sessão usar — sempre pelo
+                    estado, nunca pelo nome.
+                </p>
+
+                <label class="form-label small fw-bold">A cópia da sessão está gravada e legível?</label>
+                <div class="cmd-block">
+                    <code>wsl -d Debian -u USUARIO -- bash -lc "cd /home/USUARIO/movimente-automacao &amp;&amp; ./.venv/bin/python scripts/copia_sessao.py --conferir principal-pls"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    Sem cópia gravada, a sessão não sobrevive a um reinício. Ela é
+                    regravada sozinha a cada 2 minutos enquanto a sessão está conectada.
+                </p>
+
+                <label class="form-label small fw-bold">
+                    Repor a cópia a partir do arquivo (evita ter que parear):
+                </label>
+                <div class="cmd-block">
+                    <code>wsl -d Debian -u USUARIO -- bash -lc "cd /home/USUARIO/movimente-automacao &amp;&amp; ./.venv/bin/python scripts/copia_sessao.py --repor principal-pls"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    Use quando a cópia do banco tiver sido apagada ou corrompida. Ele
+                    pega o zip mais recente de <code>copias-sessao/</code>, põe de volta
+                    no Postgres e confere que o conteúdo lê. Só peça o celular se isto
+                    falhar.
+                </p>
+
+                <label class="form-label small fw-bold">Por que a sessão caiu? (quem derrubou):</label>
+                <div class="cmd-block">
+                    <code>wsl -d Debian -- bash -c "docker logs auto-waha-principal-pls 2>&amp;1 | grep -iE 'logged out|Unpairing|PAIRING|deleteRemoteSession|authenticated' | tail -20"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    Leia o <code>reqId</code> de cada <code>logged out</code>:
+                    <strong>sem <code>reqId</code></strong> quer dizer que o próprio
+                    WhatsApp derrubou o aparelho — não foi nada nosso.
+                    <strong>Com <code>reqId</code></strong> quer dizer que alguém chamou
+                    a API (um restart, um logout, o botão Limpar).
+                    O estado <code>PAIRING</code> no arranque é o WhatsApp exigindo
+                    pareamento novo.
+                </p>
+
+                <label class="form-label small fw-bold">Parear pelo terminal (o normal é pelo site, em Sessão do WhatsApp):</label>
+                <div class="cmd-block">
+                    <code>wsl -d Debian -u USUARIO -- bash /home/USUARIO/movimente-automacao/scripts/conectar_whatsapp.sh</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-4">
+                    Prefira o botão <strong>Conectar</strong> na tela de Sessão do
+                    WhatsApp: ele acorda a máquina, confere disco, Docker e ponte de
+                    rede, repõe a cópia se der, e manda o código para o celular e para
+                    o e-mail.
+                </p>
+
+                {# ==================================================== #}
+                <h5 class="mt-4 border-bottom pb-2">
+                    <i class="fas fa-server me-2 text-secondary"></i>3. A máquina da automação
+                </h5>
+                {# ==================================================== #}
+
+                <div class="alert alert-danger small">
+                    <strong>Nunca desligue o Dell no botão</strong> e nunca use
+                    <code>docker kill</code> ou <code>wsl --terminate</code> fora da
+                    parada limpa. Queda seca do navegador é lida como logout pelo
+                    WhatsApp, e depois de algumas vezes ele revoga o vínculo. Um
+                    desligamento inesperado em 18/08 também corrompeu o disco do WSL e
+                    deixou a automação dois dias fora do ar.
+                </div>
+
+                <label class="form-label small fw-bold">O disco do WSL está saudável? (se estiver só-leitura, nada funciona):</label>
+                <div class="cmd-block">
+                    <code>wsl -d Debian -- bash -c "touch /home/USUARIO/.t 2>&amp;1 &amp;&amp; rm -f /home/USUARIO/.t &amp;&amp; echo 'escrita OK'; df -h / | tail -1; dmesg 2>/dev/null | grep -ciE 'EXT4-fs error|Remounting filesystem read-only'"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    Espera-se <code>escrita OK</code>, um disco de ~98 GB e
+                    <code>0</code> erros. Se der
+                    <code>Read-only file system</code>, o disco corrompeu: o Docker não
+                    sobe e nada mais adianta até reparar.
+                </p>
+
+                <label class="form-label small fw-bold">Os containers estão de pé?</label>
+                <div class="cmd-block">
+                    <code>wsl -d Debian -- docker ps -a --format "{{ '{{' }}.Names{{ '}}' }} | {{ '{{' }}.Status{{ '}}' }}"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    São quatro: <code>auto-postgres</code>,
+                    <code>auto-waha-principal-pls</code>,
+                    <code>auto-waha-suplente-pls</code>.
+                    <strong>Atenção a <code>Restarting</code></strong>: o container
+                    aparece na lista igualzinho a um saudável, mas está morrendo e
+                    ressuscitando em laço.
+                </p>
+
+                <label class="form-label small fw-bold">Estado das tarefas do Windows (a que horas rodou, e como terminou):</label>
+                <div class="cmd-block">
+                    <code>powershell -Command "Get-ScheduledTask | Where-Object { $_.TaskName -like '*ovimente*' } | ForEach-Object { $i = $_ | Get-ScheduledTaskInfo; [PSCustomObject]@{ Tarefa=$_.TaskName; Nivel=$_.Principal.RunLevel; Ultima=$i.LastRunTime; Resultado=$i.LastTaskResult; Proxima=$i.NextRunTime } } | Format-Table -AutoSize"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    <code>Resultado 0</code> = terminou bem.
+                    <code>267009</code> = ainda rodando.
+                    <code>267014</code> = <strong>foi morta pelo Agendador</strong> por
+                    estourar o limite de tempo — some do log sem desfecho.
+                    <code>Nivel</code> tem de ser <code>Highest</code>, senão a ponte de
+                    rede nunca é refeita.
+                </p>
+
+                <label class="form-label small fw-bold">Parada limpa: instalar/reparar o desligamento manual:</label>
+                <div class="cmd-block">
+                    <code>powershell -ExecutionPolicy Bypass -File "C:\Users\USUARIO\Documents\SCRIPTS\MOVIMENTE\MoveMentes_Instalar_ParadaLimpa.ps1"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    Roda uma vez. O script de desligamento do Windows roda como SYSTEM,
+                    e <strong>SYSTEM não enxerga o WSL</strong> (a distro é registrada
+                    por usuário) — por isso ele chama uma tarefa que roda como você e
+                    espera ela fechar tudo. Confira depois em
+                    <code>logs\pararlimpo_AAAAMMDD.log</code>.
+                </p>
+
+                <label class="form-label small fw-bold">Parar tudo com calma agora (sem desligar a máquina):</label>
+                <div class="cmd-block">
+                    <code>powershell -Command "Start-ScheduledTask -TaskName 'MoveMentes - Parada limpa'"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    Confere a cópia da sessão, para os containers um a um e encerra o
+                    WSL. É o caminho seguro para mexer na máquina.
+                </p>
+
+                <label class="form-label small fw-bold">A ponte de rede está apontando para o IP de agora?</label>
+                <div class="cmd-block">
+                    <code>netsh interface portproxy show all &amp; wsl -d Debian -- hostname -I</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-4">
+                    O IP interno do WSL muda a cada arranque. Quando a ponte fica
+                    apontando para o endereço velho, <strong>o site perde o WhatsApp em
+                    silêncio</strong>: nada dá erro, só para de funcionar. O
+                    <em>Conferir Tudo -Corrigir</em> refaz.
+                </p>
+
+                {# ==================================================== #}
+                <h5 class="mt-4 border-bottom pb-2">
+                    <i class="fas fa-trophy me-2 text-warning"></i>4. O ranking
+                </h5>
+                {# ==================================================== #}
+
+                <label class="form-label small fw-bold">Ensaio — coleta e monta, sem mandar nada:</label>
+                <div class="cmd-block">
+                    <code>wsl -d Debian -u USUARIO -- bash -lc "cd /home/USUARIO/movimente-automacao &amp;&amp; MOVIMENTE_FORCAR=1 bash scripts/executar.sh --dry-run"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    <code>MOVIMENTE_FORCAR=1</code> fura a janela de horário
+                    (05:10–06:15 e 15:10–16:15). Sem ele, fora da janela o script
+                    responde "nada a fazer" e sai — que é o mesmo que o botão
+                    <strong>Publicar agora</strong> do painel usa por dentro.
+                </p>
+
+                <label class="form-label small fw-bold">Publicar agora, de verdade:</label>
+                <div class="cmd-block">
+                    <code>wsl -d Debian -u USUARIO -- bash -lc "cd /home/USUARIO/movimente-automacao &amp;&amp; MOVIMENTE_FORCAR=1 bash scripts/executar.sh"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    Antes de rodar, confira no painel se o <strong>modo teste</strong>
+                    está como você quer: ligado manda tudo para o seu número; desligado
+                    manda <u>para o grupo</u>, e publicar no grupo não tem volta.
+                </p>
+
+                <label class="form-label small fw-bold">O que a última rodada fez:</label>
+                <div class="cmd-block">
+                    <code>wsl -d Debian -- bash -c "tail -60 $(ls -t /home/USUARIO/movimente-automacao/logs/send_ranking_*.log | head -1)"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    Procure <code>PIPELINE CONCLUIDA</code> (deu certo),
+                    <code>RODADA INTERROMPIDA</code> (parou e por quê), e
+                    <code>entregue (ack 2)</code>, que é a prova de que a mensagem
+                    chegou ao aparelho — enviado não é o mesmo que entregue.
+                </p>
+
+                <label class="form-label small fw-bold">Laudo: a próxima rodada vai acontecer?</label>
+                <div class="cmd-block">
+                    <code>wsl -d Debian -u USUARIO -- bash -lc "cd /home/USUARIO/movimente-automacao &amp;&amp; ./.venv/bin/python scripts/send_ranking.py --laudo"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-4">
+                    É o que a máquina roda antes de desligar. Se disser que não vai
+                    acontecer, ainda dá tempo de agir.
+                </p>
+
+                {# ==================================================== #}
+                <h5 class="mt-4 border-bottom pb-2">
+                    <i class="fas fa-heartbeat me-2 text-danger"></i>5. O site (Synology)
+                </h5>
+                {# ==================================================== #}
+
+                <label class="form-label small fw-bold">Entrar no servidor do site:</label>
+                <div class="cmd-block">
+                    <code>ssh -o ProxyCommand='cloudflared access ssh --hostname {{ ssh_hostname }}' {{ ssh_user }}@{{ ssh_hostname }}</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+
+                <label class="form-label small fw-bold mt-2">O site responde? (teste primeiro isto):</label>
+                <div class="cmd-block">
+                    <code>curl -s -o /dev/null -w "HTTP %{{ '{' }}http_code{{ '}' }} em %{{ '{' }}time_total{{ '}' }}s\n" -m 30 {{ base_url_do_site }}/</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+
+                <label class="form-label small fw-bold mt-2">Últimos erros do site:</label>
+                <div class="cmd-block">
+                    <code>tail -200 /volume1/web/movimente-se/logs/movimente_se.log | grep -iE "ERROR|WARNING"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+
+                <label class="form-label small fw-bold mt-2">Acompanhar ao vivo:</label>
+                <div class="cmd-block">
+                    <code>tail -f /volume1/web/movimente-se/logs/movimente_se.log</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+
+                <label class="form-label small fw-bold mt-2">O site recarregou depois da última alteração?</label>
+                <div class="cmd-block">
+                    <code>head -2 /volume1/web/movimente-se/wsgi_debug.txt; date</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-3">
+                    O horário do arranque tem de ser <u>mais novo</u> que o da alteração.
+                    Salvar um <code>.py</code> não aplica sozinho: o recarregamento só
+                    reage ao <code>wsgi.py</code> mudar de data. Página
+                    <code>.html</code> recarrega sozinha.
+                </p>
+
+                <label class="form-label small fw-bold">Memória e carga do servidor:</label>
+                <div class="cmd-block">
+                    <code>free -m; uptime</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-4">
+                    O Synology tem 512 MB. É por isso que o WhatsApp roda no Dell e não
+                    aqui: cada sessão come de 400 a 700 MB.
+                </p>
+
+                {# ==================================================== #}
+                <h5 class="mt-4 border-bottom pb-2">
+                    <i class="fas fa-database me-2 text-primary"></i>6. Banco e backup
+                </h5>
+                {# ==================================================== #}
+
+                <div class="alert alert-danger small">
+                    <strong>Nunca abra o banco do site pelo <code>Z:</code></strong> —
+                    nem para ler, nem com <code>mode=ro</code>. O SQLite grava o índice
+                    mesmo só lendo, e pela rede isso derruba o site com
+                    <code>disk I/O error</code>. Para ler, use uma cópia feita pelo
+                    próprio site.
+                </div>
+
+                <label class="form-label small fw-bold">Backup do Postgres da automação:</label>
+                <div class="cmd-block">
+                    <code>wsl -d Debian -u USUARIO -- bash -lc "cd /home/USUARIO/movimente-automacao &amp;&amp; docker exec auto-postgres pg_dumpall -U automation > backups/dump_$(date +%Y%m%d).sql"</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+
+                <label class="form-label small fw-bold mt-2">Cópias da sessão guardadas em arquivo:</label>
+                <div class="cmd-block">
+                    <code>wsl -d Debian -- ls -lh /home/USUARIO/movimente-automacao/copias-sessao/</code>
+                    <button class="btn-copy" onclick="copyCmd(this)"><i class="fas fa-copy"></i></button>
+                </div>
+                <p class="text-muted small mb-2">
+                    É a rede de segurança: guarda as 3 cópias mais recentes de cada
+                    sessão. É daqui que o <code>--repor</code> tira o zip quando o banco
+                    perde a cópia.
+                </p>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.cmd-block {
+    background: #f1f3f5;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+.cmd-block code {
+    color: #1a1a1a;
+    font-size: 0.82rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    flex: 1;
+}
+.btn-copy {
+    background: none;
+    border: 1px solid #adb5bd;
+    color: #495057;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all .15s;
+}
+.btn-copy:hover {
+    background: #C9FF6E;
+    color: #1a1a1a;
+    border-color: #a8d84e;
+}
+.btn-copy.copied {
+    background: #2e7d32;
+    border-color: #4caf50;
+    color: #fff;
+}
+</style>
+
+<script>
+function copyCmd(btn) {
+    const code = btn.previousElementSibling.innerText;
+    navigator.clipboard.writeText(code).then(function() {
+        btn.classList.add('copied');
+        btn.innerHTML = '<i class="fas fa-check"></i>';
+        setTimeout(function() {
+            btn.classList.remove('copied');
+            btn.innerHTML = '<i class="fas fa-copy"></i>';
+        }, 1800);
+    });
+}
+</script>
+{% endblock %}

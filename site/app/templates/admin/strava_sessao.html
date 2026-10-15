@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Sessão do Strava — Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-9 mx-auto">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <h4 class="mb-0"><i class="fab fa-strava me-2 text-danger"></i>Sessão do Strava</h4>
+      <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Voltar ao painel
+      </a>
+    </div>
+
+    <p class="text-muted small">
+      O Strava deixou de listar publicamente o histórico de atividades de um perfil.
+      Para a função <strong>Importar atividades de um atleta</strong> conseguir ler mês a mês,
+      é preciso um cookie de sessão de uma conta do Strava. A leitura de cada atividade
+      continua sendo feita <strong>sem cookie</strong>, na página pública — os dados salvos
+      no ranking passam pela mesma checagem de sempre.
+    </p>
+
+    {# ===== Situação atual ===== #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light">
+        <strong><i class="fas fa-circle-info me-1"></i>Situação atual</strong>
+      </div>
+      <div class="card-body">
+        {% if info.configurado %}
+          <p class="mb-2">
+            <span class="badge bg-success"><i class="fas fa-check me-1"></i>Cookie configurado</span>
+            {% if info.herdado %}
+            <span class="badge bg-secondary ms-1">herdado da configuração global</span>
+            {% endif %}
+          </p>
+          <ul class="list-unstyled small text-muted mb-3">
+            <li><strong>Impressão digital:</strong> <code>{{ info.impressao }}</code> ({{ info.tamanho }} caracteres)</li>
+            {% if info.atualizado_em_texto %}
+            <li><strong>Atualizado em:</strong> {{ info.atualizado_em_texto }}</li>
+            {% endif %}
+            {% if info.atualizado_por %}
+            <li><strong>Atualizado por:</strong> {{ info.atualizado_por }}</li>
+            {% endif %}
+          </ul>
+          {% if saude %}
+            {% if saude.ok %}
+            <div class="alert alert-success py-2 small mb-3">
+              <i class="fas fa-check-circle me-1"></i>
+              Última verificação: conexão funcionando
+              {% if saude.verificado_em_texto %}<span class="text-muted">(em {{ saude.verificado_em_texto }})</span>{% endif %}.
+            </div>
+            {% else %}
+            <div class="alert alert-danger py-2 small mb-3">
+              <i class="fas fa-triangle-exclamation me-1"></i>
+              Última verificação falhou: {{ saude.message or 'a conexão expirou.' }}
+              {% if saude.verificado_em_texto %}<span class="text-muted">(em {{ saude.verificado_em_texto }})</span>{% endif %}
+              Cole um cookie novo abaixo.
+            </div>
+            {% endif %}
+          {% endif %}
+          <div class="d-flex flex-wrap gap-2">
+            <form method="POST">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="acao" value="testar">
+              <button type="submit" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-vial me-1"></i>Testar cookie agora
+              </button>
+            </form>
+            <form method="POST" onsubmit="return confirm('Remover o cookie? A importação por perfil deixa de funcionar até você configurar outro.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="acao" value="remover">
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="fas fa-trash me-1"></i>Remover cookie
+              </button>
+            </form>
+          </div>
+        {% else %}
+          <p class="mb-0">
+            <span class="badge bg-warning text-dark"><i class="fas fa-triangle-exclamation me-1"></i>Nenhum cookie configurado</span>
+            <span class="text-muted small ms-2">A importação por perfil de atleta não vai encontrar atividades.</span>
+          </p>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ===== Cadastro / atualização ===== #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light">
+        <strong><i class="fas fa-key me-1"></i>{{ 'Atualizar' if info.configurado else 'Configurar' }} o cookie</strong>
+      </div>
+      <div class="card-body">
+        <form method="POST" autocomplete="off">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="acao" value="salvar">
+          <label class="form-label small fw-bold" for="cookie_valor">
+            Valor do cookie <code>{{ cookie_nome }}</code>
+          </label>
+          <textarea class="form-control font-monospace" id="cookie_valor" name="cookie_valor"
+                    rows="3" spellcheck="false" autocomplete="off"
+                    placeholder="Cole aqui apenas o valor do cookie"></textarea>
+          <div class="form-text">
+            Pode colar o valor puro ou o par completo (<code>{{ cookie_nome }}=...</code>) — o sistema limpa sozinho.
+            O valor é gravado em <code>instance/</code>, fora do banco e fora do backup, e nunca é exibido de volta nesta tela.
+          </div>
+          <button type="submit" class="btn btn-primary mt-3">
+            <i class="fas fa-floppy-disk me-1"></i>Salvar e testar
+          </button>
+        </form>
+      </div>
+    </div>
+
+    {# ===== Como obter ===== #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light">
+        <strong><i class="fas fa-circle-question me-1"></i>Como obter o cookie</strong>
+      </div>
+      <div class="card-body">
+        <ol class="small mb-3">
+          <li>No computador, entre em <code>strava.com</code> com a conta que será usada para as consultas.</li>
+          <li>Pressione <kbd>F12</kbd> para abrir as Ferramentas do Desenvolvedor.</li>
+          <li>Vá em <strong>Application</strong> (ou <strong>Armazenamento</strong>) → <strong>Cookies</strong> → <code>https://www.strava.com</code>.</li>
+          <li>Localize a linha <code>{{ cookie_nome }}</code> e copie o conteúdo da coluna <strong>Value</strong>.</li>
+          <li>Cole no campo acima e clique em <strong>Salvar e testar</strong>.</li>
+        </ol>
+        <div class="alert alert-secondary small mb-2">
+          <strong>Boas práticas:</strong>
+          use uma conta dedicada ao projeto, não a conta pessoal de um atleta;
+          o cookie expira quando essa conta faz logout ou troca de senha — basta voltar aqui e colar um novo.
+          Enquanto ele estiver expirado, a importação por perfil avisa em vez de falhar em silêncio;
+          o upload do WhatsApp e os links avulsos <strong>não dependem</strong> deste cookie e seguem funcionando normalmente.
+        </div>
+        <div class="alert alert-info small mb-0">
+          <strong>Sessão renovada sozinha:</strong> a cada consulta bem-sucedida o sistema regrava
+          automaticamente o cookie renovado que o Strava devolve — enquanto for usada, esta sessão
+          se mantém viva sem manutenção.
+          <br><strong>Não misture com a automação:</strong> esta sessão é exclusiva da aplicação.
+          Se a automação (WAHA) também acessar o Strava, ela deve manter a
+          <em>própria</em> sessão, separada, do lado dela. Para repor a sessão daqui via automação,
+          gere um login novo dedicado e envie pelo endpoint <code>POST /api/strava-sessao</code> —
+          nunca reaproveite o cookie que a automação usa no dia a dia.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Pedido de acesso — MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 560px;">
+  <h1 class="h4 mb-3"><i class="fas fa-user-check text-success"></i> Pedido de acesso</h1>
+  <div class="card shadow-sm mb-3"><div class="card-body">
+    <dl class="row mb-0">
+      <dt class="col-4">Nome</dt><dd class="col-8">{{ usuario.nome }}</dd>
+      <dt class="col-4">Cidade</dt><dd class="col-8">{{ cad.cidade }}</dd>
+      <dt class="col-4">E-mail</dt><dd class="col-8">{{ usuario.email }}</dd>
+      <dt class="col-4">Telefone</dt><dd class="col-8">{{ usuario.telefone }}</dd>
+      <dt class="col-4">Perfil</dt><dd class="col-8">Visualizador</dd>
+      <dt class="col-4">Situação</dt>
+      <dd class="col-8">
+        {% if cad.aprovado_em %}Liberado em {{ cad.aprovado_em.strftime('%d/%m/%Y') }}
+        {% elif cad.rejeitado_em %}Recusado
+        {% elif cad.confirmado_em %}Aguardando você
+        {% else %}E-mail ainda não confirmado{% endif %}
+      </dd>
+    </dl>
+  </div></div>
+  {% if cad.confirmado_em and not cad.aprovado_em and not cad.rejeitado_em %}
+  <form method="post" class="d-flex gap-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button name="acao" value="aprovar" class="btn btn-success">Aprovar</button>
+    <button name="acao" value="recusar" class="btn btn-outline-danger"
+            onclick="return confirm('Recusar este pedido?');">Recusar</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

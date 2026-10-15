@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+
+{% block title %}Importar atleta - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Importar atividades de atleta</h2>
+    <a class="btn btn-outline-secondary" href="{{ url_for('upload.index') }}">Voltar ao upload</a>
+  </div>
+
+  <div class="alert alert-info">
+    Informe o perfil do atleta no Strava ou o link de uma atividade dele (link normal ou encurtado
+    <code>strava.app.link</code>). As atividades de corrida, caminhada e pedalada são gravadas no mês
+    correto pela <strong>data/hora real da atividade</strong>, não pela data da postagem.
+  </div>
+
+  {% if not cookie_strava.configurado %}
+  <div class="alert alert-warning">
+    <i class="fas fa-triangle-exclamation me-1"></i>
+    O Strava não lista mais o histórico de um perfil sem sessão iniciada, e nenhum
+    <strong>cookie de sessão</strong> está configurado — a importação não vai encontrar atividades.
+    {% if current_user.is_master %}
+    <a href="{{ url_for('admin.strava_sessao') }}" class="alert-link">Configurar agora</a>.
+    {% else %}
+    Peça a um administrador master para configurá-lo em <em>Painel &rsaquo; Sessão do Strava</em>.
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if error_message %}<div class="alert alert-danger">{{ error_message }}</div>{% endif %}
+
+  {# O servidor desliga à noite. Quem vai começar uma leitura de horas precisa
+     saber disso — e, principalmente, que não estraga nada. #}
+  {% if energia %}
+  <div class="alert {% if minutos_ate_parar is not none and minutos_ate_parar <= 60 %}alert-warning{% else %}alert-light border{% endif %} small">
+    <i class="fas fa-power-off me-1"></i> {{ energia }}
+    {% if minutos_ate_parar is not none and minutos_ate_parar <= 60 %}
+      <strong>Se a importação não terminar até lá, ela é congelada e continua sozinha
+      quando o servidor voltar</strong> — o que já foi lido fica salvo e não é lido de novo.
+    {% else %}
+      Uma importação em andamento na hora do desligamento é congelada e continua sozinha
+      no dia seguinte, de onde parou.
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" class="card card-body shadow-sm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-3">
+      <label class="form-label" for="link_atleta">Link do perfil ou de uma atividade do atleta</label>
+      <input class="form-control" id="link_atleta" name="link_atleta" type="url" required value="{{ source_url }}" placeholder="https://www.strava.com/athletes/...">
+    </div>
+    <div class="mb-2">
+      <label class="form-label d-block">Período a importar</label>
+      <div class="form-check"><input class="form-check-input" type="radio" name="periodo_upload" value="periodo_especifico" id="periodoEspecifico" {% if modo_periodo != 'ano_especifico' and modo_periodo != 'todos_periodos' %}checked{% endif %}><label class="form-check-label" for="periodoEspecifico">Mês e ano específicos <span class="text-muted small">(1 consulta ao perfil)</span></label></div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="periodo_upload" value="ano_especifico" id="anoEspecifico" {% if modo_periodo == 'ano_especifico' %}checked{% endif %}><label class="form-check-label" for="anoEspecifico">Ano inteiro <span class="text-muted small">(até 12 consultas ao perfil)</span></label></div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="periodo_upload" value="todos_periodos" id="todosPeriodos" {% if modo_periodo == 'todos_periodos' %}checked{% endif %}><label class="form-check-label" for="todosPeriodos">Todo o histórico encontrado <span class="text-muted small">(varre mês a mês até 12 meses seguidos vazios)</span></label></div>
+    </div>
+    <div class="form-check mb-3">
+      <input class="form-check-input" type="checkbox" name="ignorar_participacao" id="ignorarParticipacao">
+      <label class="form-check-label" for="ignorarParticipacao">
+        Puxar tudo desde a fundação do grupo desta cidade, mesmo que este perfil Strava nunca tenha postado um link
+        <span class="text-muted small">(use quando o atleta trocou de conta no Strava — exige a fundação do grupo cadastrada em Painel &rsaquo; Cidades &rsaquo; Editar)</span>
+      </label>
+    </div>
+    <div class="row g-2 mb-3" id="camposPeriodo">
+      <div class="col-sm-6" id="campoMes"><label class="form-label" for="periodo_mes">Mês</label><select class="form-select" id="periodo_mes" name="periodo_mes">{% for numero, nome in [(1,'Janeiro'),(2,'Fevereiro'),(3,'Março'),(4,'Abril'),(5,'Maio'),(6,'Junho'),(7,'Julho'),(8,'Agosto'),(9,'Setembro'),(10,'Outubro'),(11,'Novembro'),(12,'Dezembro')] %}<option value="{{ numero }}" {% if numero == now.month %}selected{% endif %}>{{ nome }}</option>{% endfor %}</select></div>
+      <div class="col-sm-6"><label class="form-label" for="periodo_ano">Ano</label><select class="form-select" id="periodo_ano" name="periodo_ano">{% for ano in range(now.year, 2008, -1) %}<option value="{{ ano }}" {% if ano == now.year %}selected{% endif %}>{{ ano }}</option>{% endfor %}</select></div>
+    </div>
+    <button class="btn btn-primary" type="submit">Iniciar importação</button>
+    <div class="form-text mt-2">
+      A leitura do perfil respeita o mesmo ritmo seguro usado no upload do WhatsApp.
+      Atividades que já estão no ranking são ignoradas automaticamente — repetir a importação é seguro.
+    </div>
+  </form>
+
+  {# TRABALHOS EM ABERTO (26/08/2026, pedido do dono).
+     Fechar a página nunca parou nada — mas quem chegava depois não tinha como
+     saber que havia trabalho rodando, nem como parar. A lista responde as três
+     perguntas de quem chega: o que está rodando, desde quando, e de quem é. #}
+  {% if cota and cota.linhas %}
+  <div class="card mt-3 shadow-sm">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+      <strong><i class="fas fa-gauge-high me-2 text-primary"></i>Leitura do Strava hoje</strong>
+      {% if cota.bloqueio and cota.bloqueio.travado %}
+        <span class="badge bg-danger">Strava barrou — volto em {{ (cota.bloqueio.faltam_segundos // 60) }} min</span>
+      {% elif cota.travado %}
+        <span class="badge bg-warning text-dark">no teto de {{ cota.janela }} — volta em {{ cota.volta_em_min }} min</span>
+      {% else %}
+        <span class="badge bg-success">liberado</span>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">
+        Cada mês de um atleta custa <strong>uma</strong> leitura — e ela já traz todas as
+        atividades daquele mês. Quando o teto enche, o trabalho <strong>congela e volta
+        sozinho</strong>: nada se perde, nada precisa ser refeito.
+      </p>
+
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-3">
+          <thead class="table-light">
+            <tr><th>Janela</th><th>Já usei</th><th>Teto</th><th>Ainda cabe</th><th style="width:34%"></th></tr>
+          </thead>
+          <tbody>
+            {% for l in cota.linhas %}
+            <tr>
+              <td class="text-nowrap">{{ l.rotulo }}</td>
+              <td>{{ l.gasto }}</td>
+              <td>{{ l.teto }}</td>
+              <td><strong>{{ l.resta }}</strong></td>
+              <td>
+                <div class="progress" style="height:8px" role="progressbar"
+                     aria-valuenow="{{ l.pct }}" aria-valuemin="0" aria-valuemax="100"
+                     aria-label="{{ l.rotulo }}: {{ l.pct }}% do teto usado">
+                  <div class="progress-bar {% if l.pct >= 90 %}bg-danger{% elif l.pct >= 70 %}bg-warning{% else %}bg-success{% endif %}"
+                       style="width: {{ l.pct }}%"></div>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if cota.bloqueio and cota.bloqueio.travado %}
+      <div class="alert alert-danger small">
+        <strong>O Strava fechou o acesso</strong> (
+        {%- if cota.bloqueio.tentativa > 1 -%}
+          2ª vez seguida — espero o contador diário dele virar
+        {%- else -%}
+          1ª vez — pauso 3 horas e volto devagar
+        {%- endif -%}
+        ). Insistir agora piora; a fila fica onde está e volta sozinha.
+      </div>
+      {% endif %}
+
+      <form method="POST" action="{{ url_for('upload.regular_cota') }}" class="row g-2 align-items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% for l in cota.linhas %}
+        <div class="col-6 col-md-3">
+          <label class="form-label small mb-1" for="teto_{{ l.chave }}">Teto por {{ l.rotulo }}</label>
+          <input type="number" class="form-control form-control-sm" min="10" step="10"
+                 id="teto_{{ l.chave }}" name="teto_{{ l.chave }}" value="{{ l.teto }}">
+        </div>
+        {% endfor %}
+        <div class="col-6 col-md-3">
+          <button type="submit" class="btn btn-outline-primary btn-sm w-100">
+            <i class="fas fa-floppy-disk me-1"></i> Salvar teto
+          </button>
+        </div>
+      </form>
+      <p class="text-muted small mt-2 mb-0">
+        Subir o teto lê mais por dia, e aumenta a chance de o Strava reclamar. Se ele
+        reclamar, o sistema <strong>para sozinho</strong> e avisa aqui — não fica insistindo.
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if trabalhos %}
+  <div class="card mt-3 shadow-sm border-warning">
+    <div class="card-header bg-light">
+      <strong><i class="fas fa-hourglass-half me-2 text-warning"></i>
+        {% set esperando = trabalhos|selectattr('na_fila')|list|length %}
+        {% set rodando = trabalhos|length - esperando %}
+        {{ rodando }} trabalho{{ 's' if rodando != 1 }} em andamento{% if esperando %},
+        {{ esperando }} na fila{% endif %}</strong>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">
+        O site pode ficar mais devagar enquanto isto roda, e a leitura do Strava é
+        dividida entre eles — é um limite do Strava, não do site. Nada aqui precisa de
+        página aberta: continua sozinho até terminar.
+      </p>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>O quê</th>
+              <th>Atleta</th>
+              <th>Cidade</th>
+              <th>Quem começou</th>
+              <th>Desde</th>
+              <th>Em que ponto está</th>
+              <th class="text-end">Parar</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in trabalhos %}
+            <tr>
+              <td class="text-nowrap">{{ t.tipo }}</td>
+              <td class="text-nowrap">{{ t.atleta or '—' }}</td>
+              <td class="text-nowrap">{{ t.cidade }}</td>
+              <td class="text-nowrap">{{ t.quem }}</td>
+              <td class="text-nowrap small">{{ t.desde }}</td>
+              <td class="small">
+                {% if t.pausado %}
+                  <span class="badge bg-secondary">pausado até o servidor voltar</span>
+                {% elif t.na_fila %}
+                  <span class="badge bg-info text-dark">na fila</span>
+                {% elif t.parado %}
+                  <span class="badge bg-warning text-dark">sem resposta</span>
+                {% endif %}
+                {{ t.mensagem }} <span class="text-muted">({{ t.pct }}%)</span>
+              </td>
+              <td class="text-end">
+                {% if t.pode_cancelar %}
+                <button type="button" class="btn btn-outline-danger btn-sm btn-parar"
+                        data-job="{{ t.id }}" data-tipo="{{ t.tipo }}">
+                  <i class="fas fa-stop-circle"></i> Cancelar
+                </button>
+                {% else %}
+                <span class="text-muted small" title="{{ t.motivo_bloqueio }}">
+                  <i class="fas fa-lock"></i> sem permissão
+                </span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div id="resultadoParar" class="alert alert-info small mt-3 d-none mb-0"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if job_id %}
+  {# ACOMPANHAMENTO QUE NAO SOME (14/08/2026, pedido do dono).
+     Tres blocos separados, de proposito:
+       - #progresso  o que esta sendo feito AGORA. Nunca e substituido por aviso.
+       - #aviso      "sem resposta ha N minutos", quando for o caso. Fica ABAIXO.
+       - #historico  tudo que ja passou, para quem voltou depois entender.
+     Antes era um bloco so: o aviso de demora apagava o status e o admin perdia
+     a unica informacao util da tela. #}
+  <div class="card mt-3 shadow-sm">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+        <h5 class="mb-0"><i class="fas fa-satellite-dish me-2 text-primary"></i>Importação em andamento</h5>
+        <button type="button" class="btn btn-outline-danger btn-sm" id="btnCancelar">
+          <i class="fas fa-stop-circle me-1"></i>Cancelar e guardar o que já leu
+        </button>
+      </div>
+
+      <div id="progresso" class="alert alert-secondary mb-2">Iniciando importação...</div>
+      <div class="progress mb-2" style="height:10px;">
+        <div id="barra" class="progress-bar progress-bar-striped progress-bar-animated"
+             role="progressbar" style="width:5%"></div>
+      </div>
+      <div id="aviso" class="alert alert-warning small mb-2 d-none"></div>
+
+      <div class="form-text mb-1">
+        Pode fechar esta página: a leitura continua no servidor e o acompanhamento
+        volta quando você abrir a tela de novo.
+      </div>
+
+      <details class="mt-2">
+        <summary class="small text-muted">O que já aconteceu</summary>
+        <ul id="historico" class="small text-muted mt-2 mb-0 ps-3"></ul>
+      </details>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const statusUrl = {{ url_for('upload.job_status', job_id=job_id)|tojson }};
+      const cancelUrl = {{ url_for('upload.cancel_job', job_id=job_id)|tojson }};
+      const csrf      = {{ csrf_token()|tojson }};
+      const painel    = document.getElementById('progresso');
+      const aviso     = document.getElementById('aviso');
+      const barra     = document.getElementById('barra');
+      const historico = document.getElementById('historico');
+      const btn       = document.getElementById('btnCancelar');
+      const FINAL     = ['done', 'error', 'cancelled'];
+      let ultima = '';
+
+      const registrar = (texto) => {
+        // Só entra o que MUDOU: repetir a mesma linha a cada 1,8s enche a tela
+        // de ruído e esconde o que de fato aconteceu.
+        if (!texto || texto === ultima) return;
+        ultima = texto;
+        const li = document.createElement('li');
+        const hora = new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+        li.textContent = `${hora} — ${texto}`;
+        historico.appendChild(li);
+      };
+
+      const encerrar = (estagio, texto) => {
+        painel.className = `alert mb-2 ${estagio === 'done' ? 'alert-success' : 'alert-danger'}`;
+        painel.textContent = texto;
+        barra.classList.remove('progress-bar-animated', 'progress-bar-striped');
+        btn.classList.add('d-none');
+        aviso.classList.add('d-none');
+      };
+
+      btn.addEventListener('click', async () => {
+        // POPUP DE CONFIRMACAO (pedido do dono, 22/08/2026 — substitui a
+        // decisao anterior de nao perguntar nada). Cancelar aqui continua
+        // sendo sempre "pare de buscar os proximos e guarde o que ja leu" —
+        // nunca apaga atividade — mas agora exige um "tem certeza?" antes,
+        // porque o Cancelar passou a ser garantidamente uma parada de fato.
+        if (!window.confirm('Tem certeza que quer cancelar esta importação? ' +
+            'O que já foi lido e salvo continua no banco — só o que falta ler é interrompido.')) {
+          return;
+        }
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-hourglass-half me-1"></i>Parando...';
+        try {
+          const resp = await fetch(cancelUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+            body: JSON.stringify({delete: false}),
+          });
+          // 17/08/2026 (plano attach-tidy-globe, B2/B3) — `fetch` SO REJEITA
+          // EM FALHA DE REDE. Um HTTP 400 (token CSRF invalido, sessao
+          // expirada — a pagina pode ficar aberta por horas) chegava aqui
+          // como sucesso: o log dizia "voce pediu para parar" e o servidor
+          // nunca recebeu o pedido. Confere `resp.ok` antes de comemorar.
+          if (!resp.ok) {
+            let motivo = `HTTP ${resp.status}`;
+            try {
+              const corpo = await resp.json();
+              if (corpo && corpo.message) motivo = corpo.message;
+            } catch (_e) { /* corpo nao era JSON, mantem o HTTP status */ }
+            throw new Error(motivo);
+          }
+          registrar('Você pediu para parar. As atividades já lidas foram mantidas.');
+        } catch (erro) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-stop-circle me-1"></i>Cancelar e guardar o que já leu';
+          aviso.classList.remove('d-none');
+          aviso.textContent = `Não consegui parar: ${erro.message}. Recarregue a página e tente ` +
+            'de novo — o que já foi lido continua salvo.';
+        }
+      });
+
+      // RITMO DA CONSULTA — ESTADO QUE SOBREVIVE ENTRE AS VOLTAS (26/08/2026).
+      //
+      // Ate hoje o `let intervalo` ficava DENTRO de `acompanhar`, entao voltava
+      // a 1800 ms a cada volta: os dois pontos que tentavam espacar (job parado
+      // e falha de rede) valiam uma unica vez e eram esquecidos. Na pratica a
+      // tela perguntava a cada 1,8s para sempre — e ACELERAVA justamente quando
+      // o servidor estava sofrendo. Foi assim que o site saiu do ar em 25/08:
+      // sem prazo para desistir de um pedido travado, cada pergunta prendia um
+      // atendente do uWSGI ate nao sobrar nenhum (ver ERROS.md).
+      //
+      // Agora o recuo e de verdade: dobra a cada resposta ruim ate o teto, e so
+      // volta ao ritmo normal quando o trabalho volta a andar. Tela que observa
+      // um servidor doente tem de ALIVIAR, nunca agravar.
+      const RITMO_NORMAL = 3000;
+      const RITMO_MAXIMO = 30000;
+      let intervalo = RITMO_NORMAL;
+
+      const acompanhar = async () => {
+        try {
+          const resposta = await fetch(statusUrl, {credentials: 'same-origin'});
+          const job = await resposta.json();
+          intervalo = RITMO_NORMAL;   // respondeu: volta ao ritmo de sempre
+          const texto = job.mensagem_real || job.message || 'Processando...';
+          const pct = job.pct || 0;
+
+          painel.textContent = `${texto} (${pct}%)`;
+          barra.style.width = `${Math.max(pct, 3)}%`;
+          registrar(texto);
+
+          const estagio = job.estagio_real || job.stage;
+          if (FINAL.includes(estagio)) {
+            encerrar(estagio, `${texto} (${pct}%)`);
+            return;
+          }
+
+          if (job.parado || job.stage === 'stale') {
+            // AVISO, NAO SUBSTITUICAO: o status de cima continua valendo.
+            aviso.classList.remove('d-none');
+            aviso.textContent =
+              `Sem resposta há ${job.parado_minutos || 0} minuto(s). ` +
+              'As atividades já lidas estão salvas — dá para esperar mais um pouco ' +
+              'ou apertar "Cancelar e guardar o que já leu".';
+            // Parado nao e acabado: espaca e continua perguntando, sem desistir.
+            intervalo = Math.min(intervalo * 2, RITMO_MAXIMO);
+          } else {
+            aviso.classList.add('d-none');
+          }
+        } catch (erro) {
+          aviso.classList.remove('d-none');
+          aviso.textContent = 'Sem conexão com o servidor. Continuo tentando — a leitura não para por causa disto.';
+          // O SERVIDOR NAO RESPONDEU: perguntar mais nao ajuda, atrapalha.
+          intervalo = Math.min(intervalo * 2, RITMO_MAXIMO);
+        }
+        window.setTimeout(acompanhar, intervalo);
+      };
+      acompanhar();
+    }());
+  </script>
+  {% endif %}
+
+  {% if trabalhos %}
+  <script>
+    // PARAR UM TRABALHO DA LISTA. Usa a MESMA rota do botão de cancelar de
+    // cima (`upload.cancel_job`) — duas telas para a mesma ação não podem se
+    // comportar de jeitos diferentes (convenção já aplicada na fila de
+    // mensagens, regra 16-P).
+    (function () {
+      const csrf = {{ csrf_token()|tojson }};
+      const caixa = document.getElementById('resultadoParar');
+      const base = {{ url_for('upload.cancel_job', job_id='__JOB__')|tojson }};
+
+      const dizer = (texto, ok) => {
+        caixa.classList.remove('d-none', 'alert-info', 'alert-danger', 'alert-success');
+        caixa.classList.add(ok ? 'alert-success' : 'alert-danger');
+        caixa.textContent = texto;
+      };
+
+      document.querySelectorAll('.btn-parar').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+          const tipo = btn.dataset.tipo || 'trabalho';
+          if (!window.confirm('Parar este ' + tipo.toLowerCase() + '? ' +
+              'O que já foi lido e salvo continua no banco — só o que falta é interrompido.')) {
+            return;
+          }
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fas fa-hourglass-half"></i> Parando...';
+          try {
+            const resp = await fetch(base.replace('__JOB__', btn.dataset.job), {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+              credentials: 'same-origin',
+              body: JSON.stringify({delete: false}),
+            });
+            // `fetch` só rejeita em falha de rede: um 403 (sem permissão) ou um
+            // 404 chegam aqui como sucesso. Confere o status antes de comemorar.
+            const corpo = await resp.json().catch(() => ({}));
+            if (!resp.ok || corpo.status === 'error') {
+              throw new Error(corpo.message || ('HTTP ' + resp.status));
+            }
+            dizer('Pedido de parada enviado. Ele para em até 30 segundos; ' +
+                  'recarregue a página para conferir.', true);
+            btn.innerHTML = '<i class="fas fa-check"></i> Parando';
+          } catch (erro) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-stop-circle"></i> Cancelar';
+            dizer('Não consegui parar: ' + erro.message, false);
+          }
+        });
+      });
+    }());
+  </script>
+  {% endif %}
+</div>
+<script>
+  (function () {
+    const radios = document.querySelectorAll('input[name="periodo_upload"]');
+    const campos = document.getElementById('camposPeriodo');
+    const campoMes = document.getElementById('campoMes');
+    const aplicar = () => {
+      const todos = document.getElementById('todosPeriodos').checked;
+      const anual = document.getElementById('anoEspecifico').checked;
+      campos.classList.toggle('d-none', todos);
+      campoMes.classList.toggle('d-none', anual);
+    };
+    radios.forEach(r => r.addEventListener('change', aplicar));
+    aplicar();
+  }());
+</script>
+{% endblock %}

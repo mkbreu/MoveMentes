@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Meus dados — MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 760px;">
+  <h1 class="h3 mb-1">Os seus dados</h1>
+  <p class="text-muted">
+    {{ a.nome }} — {{ a.cidade }}.
+    Inscrição em {{ a.aceite_em.strftime('%d/%m/%Y') }},
+    termos versão {{ a.versao_termos }}.
+  </p>
+
+  {% if not a.ativa %}
+  <div class="alert alert-secondary">
+    <strong>Você saiu do projeto</strong> em {{ a.revogado_em.strftime('%d/%m/%Y') }}.
+    Se quiser voltar, basta se inscrever de novo.
+  </div>
+  {% endif %}
+
+  {# ---------- o que temos ---------- #}
+  <div class="card shadow-sm mb-3">
+    <div class="card-header bg-white py-3"><strong>O que o projeto guarda sobre você</strong></div>
+    <ul class="list-group list-group-flush">
+      <li class="list-group-item d-flex justify-content-between">
+        <span>Nome</span><span class="text-muted">{{ a.nome }}</span></li>
+      <li class="list-group-item d-flex justify-content-between">
+        <span>Cidade</span><span class="text-muted">{{ a.cidade }}</span></li>
+      <li class="list-group-item d-flex justify-content-between">
+        <span>Telefone</span><span class="text-muted">{{ a.telefone or '—' }}</span></li>
+      <li class="list-group-item d-flex justify-content-between">
+        <span>E-mail</span><span class="text-muted">{{ a.email or '—' }}</span></li>
+      <li class="list-group-item d-flex justify-content-between">
+        <span>Condição de saúde informada</span>
+        <span class="text-muted">{{ 'sim' if a.consentimento_saude else 'não' }}</span></li>
+      <li class="list-group-item d-flex justify-content-between">
+        <span>Autorização de imagem</span>
+        <span class="text-muted">{{ 'sim' if a.consentimento_imagem else 'não' }}</span></li>
+      <li class="list-group-item d-flex justify-content-between">
+        <span>Aparece nas páginas públicas</span>
+        <span class="text-muted">{{ 'sim' if a.aparecer_publico else 'não' }}</span></li>
+    </ul>
+  </div>
+
+  {% if a.ativa %}
+  {# ---------- aparecer ou não ---------- #}
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="acao" value="privacidade">
+        <p class="mb-2"><strong>O meu nome pode aparecer nas páginas públicas?</strong></p>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="aparecer_publico" id="s"
+                 value="sim" {{ 'checked' if a.aparecer_publico }}>
+          <label class="form-check-label" for="s">Sim</label>
+        </div>
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="radio" name="aparecer_publico" id="n"
+                 value="nao" {{ 'checked' if not a.aparecer_publico }}>
+          <label class="form-check-label" for="n">
+            Não — os quilômetros continuam contando, só o nome não aparece.
+          </label>
+        </div>
+        <button class="btn btn-sm btn-success">Salvar</button>
+      </form>
+    </div>
+  </div>
+
+  {# ---------- retirar consentimentos ---------- #}
+  {% if a.consentimento_saude %}
+  <div class="card shadow-sm mb-3">
+    <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <strong>Condição de saúde informada</strong>
+        <span class="d-block text-muted small">
+          Usada só como critério do acompanhamento nutricional.
+        </span>
+      </div>
+      <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="acao" value="retirar_saude">
+        <button class="btn btn-sm btn-outline-danger">Apagar esta informação</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if a.consentimento_imagem %}
+  <div class="card shadow-sm mb-3">
+    <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <strong>Autorização de uso de imagem</strong>
+        <span class="d-block text-muted small">
+          Dada em {{ a.consentimento_imagem_em.strftime('%d/%m/%Y') if a.consentimento_imagem_em else '—' }}.
+        </span>
+      </div>
+      <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="acao" value="retirar_imagem">
+        <button class="btn btn-sm btn-outline-danger">Retirar a autorização</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ---------- sair ---------- #}
+  <div class="card shadow-sm border-danger mb-4">
+    <div class="card-body">
+      <p class="mb-2"><strong>Sair do projeto</strong></p>
+      <p class="text-muted small">
+        O seu nome e contato são apagados pela organização. Você não precisa
+        explicar o motivo — o campo abaixo é opcional e ajuda o projeto a
+        melhorar.
+      </p>
+      <form method="POST" onsubmit="return confirm('Tem certeza que quer sair do projeto?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="acao" value="sair">
+        <input class="form-control form-control-sm mb-2" name="motivo"
+               placeholder="Se quiser, diga o motivo (opcional)">
+        <button class="btn btn-sm btn-outline-danger">Quero sair do projeto</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="text-center">
+    <a href="{{ url_for('adesao.termos') }}" class="btn btn-outline-secondary btn-sm">Ver os termos</a>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="fas fa-house"></i> Início
+    </a>
+  </p>
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "admin/_relatorio_base.html" %}
+{% block title %}Resultados do período — MoveMentes{% endblock %}
+{% block titulo_relatorio %}Relatório de resultados{% endblock %}
+
+{% from "admin/_caixa_macros.html" import reais, saldo, custo, faixa_saldo, atalhos %}
+
+{% block corpo %}
+<h2 class="h6 mb-2">Indicadores do período</h2>
+<div class="row g-2 mb-4">
+  {% for valor, rotulo in [
+      (ind.km, 'quilômetros percorridos'),
+      (ind.atividades, 'atividades registradas'),
+      (ind.participantes_ativos, 'participantes ativos'),
+      (ind.inscritos, 'inscritos no projeto'),
+      (ind.acoes_educativas, 'ações e eventos'),
+      (ind.pessoas_alcancadas, 'pessoas alcançadas')] %}
+  <div class="col-6 col-md-3">
+    <div class="rel-cartao"><b>{{ valor }}</b><small>{{ rotulo }}</small></div>
+  </div>
+  {% endfor %}
+</div>
+
+<h2 class="h6 mb-2">Apoio recebido × total investido</h2>
+{{ faixa_saldo(ind.caixa) }}
+
+<h2 class="h6 mb-2">Ações e eventos realizados</h2>
+<table class="table table-sm mb-4">
+  <thead><tr><th>Data</th><th>Nome</th><th>Quem organizou</th><th>Canal</th>
+             <th class="rel-num">Alcançou</th></tr></thead>
+  <tbody>
+    {% for a in acoes %}
+    <tr>
+      <td>{{ a.data.strftime('%d/%m/%Y') }}</td>
+      <td>{{ a.tema }} <span class="rel-meta">({{ rotulo_tipo_acao.get(a.tipo or 'acao_educativa', a.tipo) }})</span></td>
+      <td>{{ a.ministrante or '—' }}</td>
+      <td>{{ a.canal or '—' }}</td>
+      <td class="rel-num">{{ a.participantes or '—' }}</td>
+    </tr>
+    {% endfor %}
+    {% if not acoes %}
+    <tr><td colspan="5" class="text-center text-muted py-3">
+      Nada registrado no período.</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+
+{% if acompanhamentos %}
+<h2 class="h6 mb-2">Acompanhamento nutricional (histórico — encerrado)</h2>
+<table class="table table-sm">
+  <thead><tr><th>Beneficiário</th><th>Período</th><th>Profissional</th>
+             <th>Entregáveis</th><th>Situação</th></tr></thead>
+  <tbody>
+    {% for n in acompanhamentos %}
+    <tr>
+      <td>{{ n.beneficiario_nome }}</td>
+      <td>{{ n.inicio.strftime('%m/%Y') if n.inicio else '—' }}
+          {%- if n.fim %} a {{ n.fim.strftime('%m/%Y') }}{% endif %}</td>
+      <td>{{ n.profissional or '—' }}</td>
+      <td>{{ n.entregaveis_ok }} de 3</td>
+      <td>{{ n.situacao }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<p class="rel-meta mt-3">
+  O critério de escolha de cada acompanhamento fica registrado no sistema e pode
+  ser apresentado a pedido. A condição de saúde que serve de critério é dado
+  sensível e não integra este documento.
+</p>
+{% endif %}
+{% endblock %}

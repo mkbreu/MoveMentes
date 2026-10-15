@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Justificativa de Atividade - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="row py-4">
+  <div class="col-lg-7 mx-auto">
+    <div class="card shadow-sm border-warning">
+      <div class="card-header bg-warning text-dark">
+        <strong><i class="fas fa-shield-alt me-2"></i>Justificativa de atividade sinalizada</strong>
+      </div>
+      <div class="card-body">
+        <p class="mb-1"><strong>Atleta:</strong> {{ atleta.nome_atual or 'Atleta' }}</p>
+        <p class="mb-1"><strong>Motivo:</strong> {{ flag.tipo_flag }}</p>
+        {% if flag.atividade %}
+        <p class="mb-3"><strong>Atividade:</strong>
+          {{ flag.atividade.data_hora.strftime('%d/%m/%Y') if flag.atividade.data_hora else '-' }}
+          &mdash; {{ '%.2f'|format(flag.atividade.distancia or 0) }} km
+          {% if flag.atividade.link_original %}
+          <a href="{{ flag.atividade.link_original }}" target="_blank" rel="noopener noreferrer" class="ms-1">
+            <i class="fab fa-strava"></i> Ver no Strava
+          </a>
+          {% endif %}
+        </p>
+        {% endif %}
+
+        {% if flag.status == 'aberta' %}
+        <div class="alert alert-info">Explique a atividade e, se desejar, envie imagens ou documentos para analise.</div>
+        <form method="POST" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3">
+            <label for="justificativa" class="form-label">Justificativa</label>
+            <textarea id="justificativa" name="justificativa" class="form-control" rows="5"
+                      placeholder="Explique por que esta atividade deve ser revisada..."></textarea>
+          </div>
+          <div class="mb-3">
+            <label for="evidencia" class="form-label">Imagens ou documentos (opcional)</label>
+            <input id="evidencia" type="file" name="evidencia" class="form-control"
+                   accept="image/*,.pdf,.doc,.docx,.txt">
+            <div class="form-text">Imagem, PDF, DOCX ou TXT de ate 10 MB.</div>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-paper-plane me-1"></i>Enviar justificativa
+          </button>
+        </form>
+        {% elif flag.status == 'em_revisao' %}
+        <div class="alert alert-info mb-0">A justificativa ja foi enviada e esta aguardando analise.</div>
+        {% elif flag.status == 'aprovada' %}
+        <div class="alert alert-success mb-0">A revisao foi aprovada. A atividade volta a contar no ranking.</div>
+        {% else %}
+        <div class="alert alert-danger mb-0">A revisao foi rejeitada. Entre em contato com a administracao se precisar registrar recurso.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

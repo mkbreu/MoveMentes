@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+
+{% block title %}Avisos - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-11 mx-auto">
+
+    <div class="card shadow mb-4">
+      <div class="card-header d-flex align-items-center justify-content-between"
+           style="background-color: #C9FF6E; color: #1a1a1a;">
+        <h4 class="mb-0"><i class="fas fa-bullhorn me-2"></i>Avisos programados</h4>
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-dark">
+          <i class="fas fa-arrow-left me-1"></i>Voltar
+        </a>
+      </div>
+      <div class="card-body">
+
+        <p class="text-muted">
+          Recados enviados no WhatsApp <strong>no privado de cada atleta</strong>, na hora
+          que você marcar. A automação envia junto com a rodada do ranking (10:30 e 22:00);
+          ninguém recebe o mesmo aviso duas vezes no mesmo dia.
+        </p>
+
+        {# ===== LISTA ===== #}
+        <h5 class="mt-3 border-bottom pb-2"><i class="fas fa-list me-2 text-primary"></i>Meus avisos</h5>
+        {% if avisos %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Código</th><th>Título</th><th>Para quem</th>
+                <th>Quando</th><th>Enviados</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in avisos %}
+              <tr class="{{ '' if a.ativo else 'text-muted' }}">
+                <td><code>{{ a.codigo }}</code>{% if a.tem_imagem %}
+                  <i class="fas fa-image ms-1 text-secondary" title="tem imagem"></i>{% endif %}</td>
+                <td>{{ a.titulo }}</td>
+                <td><span class="small">{{ a.publico_label }}</span></td>
+                <td class="small">
+                  {{ a.frequencia_label }}{% if a.horario %} às {{ a.horario }}{% endif %}
+                  {% if a.data_fim %}<br><span class="text-muted">até {{ a.data_fim }}</span>{% endif %}
+                </td>
+                <td>{{ a.enviados }}</td>
+                <td class="text-end">
+                  <a href="{{ url_for('avisos.previa', aviso_id=a.id) }}"
+                     class="btn btn-sm btn-outline-primary" title="Ver prévia e destinatários">
+                    <i class="fas fa-eye"></i>
+                  </a>
+                  <form method="POST" action="{{ url_for('avisos.alternar', aviso_id=a.id) }}" class="d-inline">
+                    <button class="btn btn-sm btn-outline-{{ 'warning' if a.ativo else 'success' }}"
+                            title="{{ 'Pausar' if a.ativo else 'Ativar' }}">
+                      <i class="fas fa-{{ 'pause' if a.ativo else 'play' }}"></i>
+                    </button>
+                  </form>
+                  <form method="POST" action="{{ url_for('avisos.apagar', aviso_id=a.id) }}" class="d-inline"
+                        onsubmit="return confirm('Apagar o aviso {{ a.codigo }}?');">
+                    <button class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted">Nenhum aviso criado ainda.</p>
+        {% endif %}
+
+        {# ===== NOVO AVISO ===== #}
+        <h5 class="mt-4 border-bottom pb-2"><i class="fas fa-plus me-2 text-success"></i>Criar aviso</h5>
+        <form method="POST" action="{{ url_for('avisos.salvar') }}" enctype="multipart/form-data">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-bold">Título (só você vê)</label>
+              <input type="text" name="titulo" class="form-control" required
+                     placeholder="Ex.: Evento de sábado, mudança de regra">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-bold">Imagem (opcional)</label>
+              <input type="file" name="imagem" class="form-control" accept="image/*">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-bold">Ativo?</label>
+              <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" name="ativo" checked>
+                <label class="form-check-label small">Sim, pode enviar</label>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small fw-bold">Mensagem</label>
+              <textarea name="mensagem" class="form-control" rows="8" required
+                        id="campo-mensagem"></textarea>
+              <div class="form-text">
+                Você pode usar: <code>{nome}</code> (primeiro nome),
+                <code>{mes}</code>, <code>{estabelecimento}</code>, <code>{endereco}</code>,
+                <code>{mapa}</code>, <code>{horario}</code>. Eles são trocados pelos dados
+                reais na hora do envio.
+              </div>
+            </div>
+
+            {# --- publico --- #}
+            <div class="col-12">
+              <label class="form-label small fw-bold">Para quem vai</label>
+              <div class="row g-2">
+                {% for chave, rotulo in publicos.items() %}
+                <div class="col-md-6">
+                  <div class="form-check border rounded p-2 h-100">
+                    <input class="form-check-input" type="radio" name="publico"
+                           value="{{ chave }}" id="pub-{{ chave }}"
+                           {% if chave == 'todos' %}checked{% endif %}>
+                    <label class="form-check-label small" for="pub-{{ chave }}">
+                      <strong>{{ rotulo }}</strong><br>
+                      <span class="text-muted">
+                        {% if chave == 'todos' %}
+                          Recado que interessa a todo mundo — mudança de regra, evento, premiação.
+                        {% elif chave == 'ranking' %}
+                          Só quem aparece no ranking do mês. Para assunto da disputa em andamento.
+                        {% elif chave == 'ativos' %}
+                          Só quem postou link nos últimos dias. Evita incomodar quem está no
+                          grupo só de enfeite — e reduz risco de bloqueio do WhatsApp.
+                        {% else %}
+                          Você escolhe um a um. Reserve para emergência.
+                        {% endif %}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label small fw-bold">Mês de referência</label>
+              <select name="ref_mes" class="form-select">
+                {% for m in range(1, 13) %}
+                <option value="{{ m }}" {% if m == mes_atual %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Usado por "ranking" e "medalhistas".</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-bold">Ano de referência</label>
+              <input type="number" name="ref_ano" class="form-control" value="{{ ano_atual }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-bold">Dias (público "ativos")</label>
+              <input type="number" name="dias" class="form-control" value="45" min="1" max="365">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-bold">Medalhistas</label>
+              <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" name="so_pendentes" checked>
+                <label class="form-check-label small">Pular quem já retirou</label>
+              </div>
+            </div>
+
+            {# --- quando --- #}
+            <div class="col-md-3">
+              <label class="form-label small fw-bold">Com que frequência</label>
+              <select name="frequencia" class="form-select">
+                {% for chave, rotulo in frequencias.items() %}
+                <option value="{{ chave }}">{{ rotulo }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small fw-bold">Horário</label>
+              <input type="time" name="horario" class="form-control" value="10:30">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small fw-bold">2º horário</label>
+              <input type="time" name="horario_2" class="form-control">
+              <div class="form-text">Opcional.</div>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small fw-bold">Dia da semana</label>
+              <select name="dia_semana" class="form-select">
+                <option value="">—</option>
+                <option value="0">Segunda</option><option value="1">Terça</option>
+                <option value="2">Quarta</option><option value="3">Quinta</option>
+                <option value="4">Sexta</option><option value="5">Sábado</option>
+                <option value="6">Domingo</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <div class="form-check form-switch mt-4">
+                <input class="form-check-input" type="checkbox" name="so_mes_vigente">
+                <label class="form-check-label small">Só no mês vigente</label>
+              </div>
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label small fw-bold">Começa em</label>
+              <input type="date" name="data_inicio" class="form-control">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-bold">Termina em</label>
+              <input type="date" name="data_fim" class="form-control">
+            </div>
+
+            <div class="col-12">
+              <div class="alert alert-info py-2 small mb-2">
+                <i class="fas fa-info-circle me-1"></i>
+                Antes de disparar para os atletas, veja a <strong>prévia</strong>: ela mostra a
+                mensagem exatamente como vai chegar e a lista de quem vai receber.
+              </div>
+              <button type="submit" class="btn btn-success">
+                <i class="fas fa-save me-1"></i>Salvar aviso
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {# ===== LOCAL DE RETIRADA ===== #}
+        <h5 class="mt-5 border-bottom pb-2"><i class="fas fa-map-marker-alt me-2 text-danger"></i>Onde retirar a medalha</h5>
+        <p class="text-muted small">
+          <strong>Só preencha aqui se a entrega deste mês for em OUTRO lugar</strong>
+          que não o do patrocinador. O normal é o endereço sair da
+          <a href="{{ url_for('ranking.patrocinadores') }}">ficha do patrocinador</a>,
+          que não muda de mês para mês.
+        </p>
+        <form method="GET" class="row g-2 align-items-end mb-2">
+          <div class="col-auto">
+            <label class="form-label small fw-bold mb-1">Mês do local</label>
+            <select name="mes" class="form-select form-select-sm">
+              {% for numero, nome in meses.items() %}
+              <option value="{{ numero }}" {% if numero == mes_local %}selected{% endif %}>{{ nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-auto">
+            <label class="form-label small fw-bold mb-1">Ano</label>
+            <select name="ano" class="form-select form-select-sm">
+              {% for a in anos_local %}
+              <option value="{{ a }}" {% if a == ano_local %}selected{% endif %}>{{ a }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-sm btn-outline-secondary">Ver este mês</button>
+          </div>
+          <div class="col-auto small text-muted">
+            Editando <strong>{{ meses.get(mes_local, mes_local) }}/{{ ano_local }}</strong>.
+          </div>
+        </form>
+        <form method="POST" action="{{ url_for('avisos.salvar_local') }}" class="row g-2">
+          <input type="hidden" name="ano" value="{{ ano_local }}">
+          <input type="hidden" name="mes" value="{{ mes_local }}">
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Estabelecimento</label>
+            <input type="text" name="estabelecimento" class="form-control"
+                   value="{{ local.estabelecimento or '' }}" placeholder="Relojoaria 3R">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-bold">Endereço</label>
+            <input type="text" name="endereco" class="form-control"
+                   value="{{ local.endereco or '' }}" placeholder="Av. Principal, 123 - Centro">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Link do Google Maps</label>
+            <input type="url" name="maps_url" class="form-control"
+                   value="{{ local.maps_url or '' }}" placeholder="https://maps.app.goo.gl/...">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Horário</label>
+            <input type="text" name="horario_funcionamento" class="form-control"
+                   value="{{ local.horario or '' }}" placeholder="8h às 18h">
+          </div>
+          <div class="col-12">
+            <button class="btn btn-outline-danger btn-sm"><i class="fas fa-save me-1"></i>Salvar local de {{ meses.get(mes_local, mes_local) }}/{{ ano_local }}</button>
+          </div>
+        </form>
+
+        {# ===== TELEFONES FALTANDO ===== #}
+        {% if sem_telefone %}
+        <h5 class="mt-5 border-bottom pb-2">
+          <i class="fas fa-phone-slash me-2 text-warning"></i>
+          Atletas sem telefone ({{ sem_telefone|length }})
+        </h5>
+        <p class="text-muted small">
+          Estes não recebem aviso nenhum enquanto o número faltar. Digite com DDD —
+          o sistema completa o 55 e formata sozinho.
+        </p>
+        <div class="row g-2">
+          {% for a in sem_telefone %}
+          <div class="col-md-6 col-lg-4">
+            <form method="POST" action="{{ url_for('avisos.gravar_telefone') }}"
+                  class="input-group input-group-sm mb-1">
+              <input type="hidden" name="chave" value="{{ a.chave }}">
+              <span class="input-group-text" style="min-width:11rem; font-size:.8rem;">
+                {{ a.nome[:20] }}
+              </span>
+              <input type="text" name="telefone" class="form-control"
+                     placeholder="(DD) 9XXXX-XXXX" required>
+              <button class="btn btn-outline-success"><i class="fas fa-check"></i></button>
+            </form>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

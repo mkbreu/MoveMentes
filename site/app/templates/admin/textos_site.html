@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Textos da página inicial{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h1 class="h4 mb-0">
+      <i class="fas fa-pen-to-square me-2"></i>Textos da página inicial
+    </h1>
+    <a href="/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
+      <i class="fas fa-arrow-up-right-from-square me-1"></i>Ver a página
+    </a>
+  </div>
+
+  <div class="alert alert-light border small">
+    Aqui você muda o que a página inicial diz, sem mexer no site. Dá para deixar
+    <strong>negrito</strong>, <em>itálico</em> e <u>sublinhado</u> — as cores e o
+    tamanho seguem o padrão do site de propósito, para a página não ficar
+    remendada. Deixe um trecho em branco para voltar ao texto original.
+  </div>
+
+  {% for item in itens %}
+  <div class="card shadow-sm mb-3">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <span class="fw-semibold">{{ item.rotulo }}</span>
+      {% if item.personalizado %}
+        <span class="badge bg-warning text-dark">alterado por você</span>
+      {% else %}
+        <span class="badge bg-light text-muted border">texto original</span>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('admin.textos_site') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="chave" value="{{ item.chave }}">
+
+        <div class="btn-group btn-group-sm mb-2" role="group">
+          <button type="button" class="btn btn-outline-secondary mm-fmt"
+                  data-tag="strong" data-alvo="t_{{ loop.index }}" title="negrito">
+            <strong>N</strong>
+          </button>
+          <button type="button" class="btn btn-outline-secondary mm-fmt"
+                  data-tag="em" data-alvo="t_{{ loop.index }}" title="itálico">
+            <em>I</em>
+          </button>
+          <button type="button" class="btn btn-outline-secondary mm-fmt"
+                  data-tag="u" data-alvo="t_{{ loop.index }}" title="sublinhado">
+            <u>S</u>
+          </button>
+          <button type="button" class="btn btn-outline-secondary mm-maiuscula"
+                  data-alvo="t_{{ loop.index }}" title="deixar em MAIÚSCULAS">
+            AA
+          </button>
+        </div>
+
+        <textarea class="form-control mm-editor" id="t_{{ loop.index }}" name="conteudo"
+                  data-previa="p_{{ loop.index }}" rows="3">{{ item.valor }}</textarea>
+
+        {# COMO VAI APARECER (09/09/2026, pedido do dono): editar sem ver o
+           resultado e' adivinhacao, ainda mais com marcacao escrita a mao. A
+           previa usa a MESMA regra do servidor -- so' negrito, italico e
+           sublinhado passam; o resto aparece como texto, igual vai ficar. #}
+        <div class="mt-2">
+          <div class="small text-muted mb-1">
+            <i class="fas fa-eye me-1"></i>Como vai aparecer na página:
+          </div>
+          <div class="border rounded p-2 bg-white" id="p_{{ loop.index }}"></div>
+        </div>
+
+        <div class="small text-muted mt-1">
+          Original: <span class="fst-italic">{{ item.padrao or '(vazio)' }}</span>
+          {% if item.atualizado_por %}
+            <br>Alterado por {{ item.atualizado_por }} em {{ item.atualizado_em }}.
+          {% endif %}
+        </div>
+
+        <div class="mt-2 d-flex gap-2">
+          <button class="btn btn-sm btn-primary" name="acao" value="salvar">
+            <i class="fas fa-check me-1"></i>Salvar
+          </button>
+          {% if item.personalizado %}
+          <button class="btn btn-sm btn-outline-secondary" name="acao" value="restaurar"
+                  onclick="return confirm('Voltar ao texto original deste trecho?');">
+            <i class="fas fa-rotate-left me-1"></i>Voltar ao original
+          </button>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+
+</div>
+
+<script>
+// Envolve o trecho selecionado com a marcação. Se não houver seleção, avisa em
+// vez de inserir tag vazia -- tag vazia no meio do texto confunde na hora de
+// reeditar.
+document.querySelectorAll('.mm-fmt').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var ta = document.getElementById(b.dataset.alvo);
+    if (!ta) { return; }
+    var i = ta.selectionStart, f = ta.selectionEnd;
+    if (i === f) { alert('Selecione primeiro o trecho que você quer formatar.'); return; }
+    var tag = b.dataset.tag;
+    var sel = ta.value.substring(i, f);
+    ta.value = ta.value.substring(0, i) + '<' + tag + '>' + sel + '</' + tag + '>'
+             + ta.value.substring(f);
+    ta.focus();
+  });
+});
+// A PREVIA REPETE A REGRA DO SERVIDOR, de proposito. Se ela mostrasse HTML
+// livre, o dono veria uma coisa e a pagina publica mostraria outra -- e a
+// diferenca so' apareceria depois de salvar.
+var TAGS_OK = ['strong', 'em', 'u', 'br'];
+function previa(bruto) {
+  var t = (bruto || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  TAGS_OK.forEach(function (tag) {
+    t = t.split('&lt;' + tag + '&gt;').join('<' + tag + '>');
+    t = t.split('&lt;/' + tag + '&gt;').join('</' + tag + '>');
+  });
+  return t;
+}
+function atualizarPrevia(ta) {
+  var alvo = document.getElementById(ta.dataset.previa);
+  if (!alvo) { return; }
+  var html = previa(ta.value);
+  alvo.innerHTML = html || '<span class="text-muted fst-italic">'
+                   + '(vazio — a página usa o texto original)</span>';
+}
+document.querySelectorAll('.mm-editor').forEach(function (ta) {
+  atualizarPrevia(ta);
+  ta.addEventListener('input', function () { atualizarPrevia(ta); });
+});
+// os botoes de formatacao tambem atualizam a previa
+document.querySelectorAll('.mm-fmt, .mm-maiuscula').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var ta = document.getElementById(b.dataset.alvo);
+    if (ta) { setTimeout(function () { atualizarPrevia(ta); }, 0); }
+  });
+});
+
+document.querySelectorAll('.mm-maiuscula').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var ta = document.getElementById(b.dataset.alvo);
+    if (!ta) { return; }
+    var i = ta.selectionStart, f = ta.selectionEnd;
+    if (i === f) { alert('Selecione primeiro o trecho que você quer em maiúsculas.'); return; }
+    ta.value = ta.value.substring(0, i) + ta.value.substring(i, f).toUpperCase()
+             + ta.value.substring(f);
+    ta.focus();
+  });
+});
+</script>
+{% endblock %}

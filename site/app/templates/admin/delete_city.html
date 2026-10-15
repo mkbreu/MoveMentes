@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Apagar cidade - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+
+      <h1 class="h3 mb-3"><i class="fas fa-triangle-exclamation text-danger"></i>
+        Apagar a cidade <strong>{{ config.cidade }}</strong></h1>
+
+      {% if bloqueio %}
+        <div class="alert alert-danger">
+          <i class="fas fa-lock"></i> {{ bloqueio }}
+        </div>
+        <a href="{{ url_for('admin.manage_cities') }}" class="btn btn-secondary">
+          <i class="fas fa-arrow-left"></i> Voltar
+        </a>
+      {% else %}
+
+      <div class="alert alert-danger">
+        <p class="mb-2"><strong>Isto apaga de verdade.</strong> Some tudo que é desta cidade:</p>
+        <ul class="mb-2">
+          <li><strong>{{ atividades }}</strong> atividade(s) de atletas</li>
+          <li><strong>{{ usuarios|length }}</strong> usuário(s):
+            {% for u in usuarios %}{{ u.nome }} ({{ u.rotulo_tipo }}){{ ', ' if not loop.last }}{% endfor %}
+            {%- if not usuarios %}nenhum{% endif %}</li>
+          <li>rankings mensais, patrocinadores, avisos, medalhistas, prestação de contas,
+              links públicos, feedbacks e as credenciais desta cidade no cofre</li>
+        </ul>
+        <p class="mb-0">Os dados das <em>outras</em> cidades não são tocados.</p>
+      </div>
+
+      <div class="alert alert-success">
+        <i class="fas fa-shield-halved"></i>
+        <strong>Antes de apagar, o sistema gera um backup completo do banco e o abre para conferir.</strong>
+        Se o backup não abrir, nada é apagado — e você recebe o motivo.
+      </div>
+
+      <form method="POST" action="{{ url_for('admin.delete_city', city_name=config.cidade) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" name="confirmo" value="sim" id="confirmo" required>
+          <label class="form-check-label" for="confirmo">
+            Entendi que esta ação é definitiva e quero apagar a cidade <strong>{{ config.cidade }}</strong>.
+          </label>
+        </div>
+        <button type="submit" class="btn btn-danger">
+          <i class="fas fa-trash"></i> Fazer backup e apagar
+        </button>
+        <a href="{{ url_for('admin.manage_cities') }}" class="btn btn-secondary">Cancelar</a>
+      </form>
+
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Velocidade plausível{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+
+  <h1 class="h4 mb-1">
+    <i class="fas fa-gauge-high me-2"></i>Velocidade plausível
+  </h1>
+  <p class="text-muted small">
+    A régua de {{ cidade or 'todas as cidades' }}. Acima destes valores, a
+    atividade é tratada como suspeita e fica de fora das tabelas da página
+    inicial — <strong>sem perder quilômetro no ranking</strong>.
+  </p>
+
+  <div class="alert alert-light border small">
+    Quanto maior a distância, menor a velocidade que o corpo sustenta — por isso
+    cada faixa tem seu valor. Deixe em branco para usar a sugestão.
+    <br>O <strong>recorde mundial</strong> continua valendo como limite
+    absoluto: nenhum ajuste aqui passa dele.
+  </div>
+
+  {% for b in blocos %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span class="fw-semibold">{{ b.rotulo }}</span>
+      {# A PREVIA E' O CORACAO DA TELA: escolher numero sem ver o efeito e'
+         adivinhacao, e o efeito aqui e' marcar (ou nao) atividade de gente
+         real. #}
+      <span class="badge {% if b.pct > 5 %}bg-danger{% elif b.pct > 2 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+        deixa de fora {{ b.previa.fora }} de {{ b.previa.total }} ({{ b.pct }}%)
+      </span>
+    </div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('admin.parametros_velocidade') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="modalidade" value="{{ b.modalidade }}">
+
+        <div class="row g-3">
+          {% for l in b.linhas %}
+          <div class="col-6 col-lg-3">
+            <label class="form-label small mb-1">{{ l.rotulo }}</label>
+            <div class="input-group input-group-sm">
+              <input type="number" step="0.1" min="1" max="99"
+                     class="form-control{% if l.personalizado %} border-warning{% endif %}"
+                     name="teto_{{ l.chave }}" value="{{ l.valor }}"
+                     placeholder="{{ l.sugestao }}">
+              <span class="input-group-text">km/h</span>
+            </div>
+            <div class="form-text" style="font-size:.72rem;">
+              {% if l.personalizado %}
+                seu valor · sugestão: {{ l.sugestao }}
+              {% else %}
+                usando a sugestão ({{ l.sugestao }})
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <button class="btn btn-sm btn-primary mt-3">
+          <i class="fas fa-check me-1"></i>Salvar a régua de {{ b.rotulo|lower }}
+        </button>
+      </form>
+    </div>
+    <div class="card-footer small text-muted">
+      A conta acima é feita com os valores que estão nos campos agora —
+      salve para valer, e recarregue para ver o efeito do que você mudou.
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="alert alert-light border small">
+    <strong>Por atleta.</strong> Quem treina de verdade faz com folga o que para
+    outra pessoa seria impossível. O teto individual fica na página de ajuste do
+    atleta e <strong>vence esta régua</strong> — assim você libera quem é rápido
+    sem afrouxar a régua para todo mundo.
+  </div>
+
+</div>
+{% endblock %}

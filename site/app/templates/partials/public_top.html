@@ -1,0 +1,48 @@
+{# Topo padrão das páginas públicas: agradecimento + disclaimer + patrocinadores
+   lado a lado (principal + apoio). Requer `pub` (ver ranking._public_page_context). #}
+{% if pub %}
+<div class="mb-4">
+  {% if pub.agradecimento_nomes and pub.agradecimento_nomes != 'A definir' %}
+  <div class="text-center mb-2">
+    <div class="alert alert-success d-inline-block px-4 mb-0">
+      <i class="fas fa-heart text-danger me-1"></i>
+      Agradecemos aos nossos patrocinadores: <strong>{{ pub.agradecimento_nomes }}</strong>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Disclaimer — logo abaixo do agradecimento, com destaque avermelhado. #}
+  <div class="alert alert-danger mt-2 mb-3" style="font-size:1.02rem; border-left:5px solid #b02a37;">
+    <i class="fas fa-triangle-exclamation me-1"></i>
+    <strong>Atenção:</strong> respeite sempre os seus limites físicos e, em caso de dúvida,
+    procure orientação médica antes de praticar atividades. O grupo e a organização do
+    MoveMentes não se responsabilizam por acidentes, lesões ou problemas de saúde
+    decorrentes da prática esportiva. Ao participar do grupo, você concorda que os dados
+    das suas atividades apareçam nesta página pública, em conformidade com a LGPD.
+  </div>
+
+  {# Patrocinadores lado a lado: principal + apoio. #}
+  {% if pub.sponsor_logo_url or pub.sponsors_extra %}
+  <div class="row g-3 justify-content-center align-items-stretch">
+    {% if pub.sponsor_logo_url %}
+    <div class="col-6 col-md-5 col-lg-4">
+      <div class="border rounded p-2 bg-white text-center h-100 d-flex flex-column justify-content-center">
+        <img src="{{ pub.sponsor_logo_url }}" alt="Patrocinador principal"
+             style="max-width:100%; max-height:32vh; object-fit:contain; margin:0 auto;">
+        <div class="text-muted small mt-2">Patrocinador do mês: <strong>{{ pub.sponsor_name }}</strong></div>
+      </div>
+    </div>
+    {% endif %}
+    {% for sp in pub.sponsors_extra %}
+    <div class="col-6 col-md-5 col-lg-4">
+      <div class="border rounded p-2 bg-white text-center h-100 d-flex flex-column justify-content-center">
+        <img src="{{ sp.logo_url }}" alt="{{ sp.nome }}"
+             style="max-width:100%; max-height:32vh; object-fit:contain; margin:0 auto;">
+        <div class="text-muted small mt-2">Apoio: <strong>{{ sp.nome }}</strong></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}

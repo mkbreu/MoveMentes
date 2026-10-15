@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Cidade - {{ city_config.cidade }} - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center py-4">
+    <div class="col-md-8 col-lg-7">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-edit"></i> Editar Cidade: {{ city_config.cidade }}
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin.edit_city', city_name=city_config.cidade) }}">
+                    <h5 class="mb-3"><i class="fas fa-bullseye"></i> Metas da Cidade</h5>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="meta_corrida_caminhada" class="form-label">Meta Corrida/Caminhada (km)</label>
+                                <input type="number" class="form-control" id="meta_corrida_caminhada" name="meta_corrida_caminhada"
+                                       value="{{ city_config.meta_corrida_caminhada }}" min="1">
+                                <span class="input-group-text">km</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="meta_ciclismo" class="form-label">Meta Ciclismo (km)</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="meta_ciclismo" name="meta_ciclismo"
+                                           value="{{ city_config.meta_ciclismo }}" min="1">
+                                    <span class="input-group-text">km</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h5 class="mb-3"><i class="fas fa-users"></i> Grupo do WhatsApp</h5>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Mês de fundação (opcional)</label>
+                            <input type="number" class="form-control" name="piso_importacao_mes"
+                                   value="{{ city_config.piso_importacao_mes or '' }}" min="1" max="12" placeholder="Não sei">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Ano de fundação (opcional)</label>
+                            <input type="number" class="form-control" name="piso_importacao_ano"
+                                   value="{{ city_config.piso_importacao_ano or '' }}" min="2000" max="2100" placeholder="Não sei">
+                        </div>
+                        <div class="col-12 mt-1">
+                            <div class="form-text">Desde quando o grupo desta cidade existe no WhatsApp. Usado como piso ao trazer o histórico completo de um atleta (importação por perfil Strava) — nada antes disso é importado. Deixe em branco se não souber.</div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h5 class="mb-3"><i class="fas fa-shield-alt"></i> Limites do Anti-cheat</h5>
+                    <p class="text-muted small">Corrida/caminhada e avaliada pelo pace; ciclismo pela velocidade em km/h.</p>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label for="pace_max_corrida_curta" class="form-label">Pace mais rapido - corrida curta (&lt; 5 km)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="pace_max_corrida_curta" name="pace_max_corrida_curta"
+                                       value="{{ city_config.pace_max_corrida_curta or 4.167 }}" min="0.001" step="0.001">
+                                <span class="input-group-text">min/km</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="pace_max_corrida_longa" class="form-label">Pace mais rapido - corrida longa (&ge; 5 km)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="pace_max_corrida_longa" name="pace_max_corrida_longa"
+                                       value="{{ city_config.pace_max_corrida_longa or 5.0 }}" min="0.001" step="0.001">
+                                <span class="input-group-text">min/km</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mt-3">
+                            <label for="velocidade_min_ciclismo" class="form-label">Velocidade minima do ciclismo (opcional)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="velocidade_min_ciclismo" name="velocidade_min_ciclismo"
+                                       value="{{ city_config.velocidade_min_ciclismo or '' }}" min="0.1" step="0.1" placeholder="Sem minimo">
+                                <span class="input-group-text">km/h</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mt-3">
+                            <label for="velocidade_max_ciclismo" class="form-label">Velocidade maxima do ciclismo</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="velocidade_max_ciclismo" name="velocidade_max_ciclismo"
+                                       value="{{ city_config.velocidade_max_ciclismo or 45.0 }}" min="0.1" step="0.1">
+                                <span class="input-group-text">km/h</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h5 class="mb-3"><i class="fas fa-award"></i> Patrocinador e PIX</h5>
+                    <div class="alert alert-info py-2 small">
+                        <i class="fas fa-circle-info me-1"></i>
+                        O patrocinador deixou de ser um campo da cidade: cada <strong>mês</strong> tem o seu,
+                        com logo, bordão e legenda próprios — por isso o ranking de junho não mostra mais
+                        o patrocinador de julho.
+                        <a href="{{ url_for('ranking.patrocinadores') }}" class="alert-link">Abrir a tela de patrocinadores</a>.
+                    </div>
+                    <div class="mb-4">
+                        <label for="chave_pix" class="form-label">Chave PIX</label>
+                        <input type="text" id="chave_pix" name="chave_pix" class="form-control"
+                               value="{{ city_config.chave_pix or '' }}" placeholder="e-mail, CPF/CNPJ, telefone ou chave aleatória">
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-save"></i> Salvar Configurações
+                        </button>
+                        <a href="{{ url_for('admin.manage_cities') }}" class="btn btn-secondary btn-lg">Cancelar</a>
+                    </div>
+                </form>
+
+                <div class="mt-3 text-muted text-center">
+                    <small>Última atualização: {{ city_config.ult_atualizacao_config.strftime('%d/%m/%Y às %H:%M') if city_config.ult_atualizacao_config else 'Nunca' }}</small>
+                </div>
+
+                {% if current_user.is_master %}
+                <hr class="my-4">
+                <h5 class="mb-2 text-warning"><i class="fas fa-arrow-right-arrow-left"></i> Renomear esta cidade</h5>
+                <p class="text-muted small">
+                    Troca o nome em <strong>todos os registros</strong> (atividades, usuários, rankings,
+                    patrocinadores e links) de uma vez. Os links já enviados no WhatsApp continuam funcionando.
+                </p>
+                <form method="POST" action="{{ url_for('admin.renomear_cidade') }}"
+                      onsubmit="return confirm('Renomear a cidade &quot;{{ city_config.cidade }}&quot;? Todos os registros passam a usar o novo nome.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="cidade_origem" value="{{ city_config.cidade }}">
+                    <div class="input-group">
+                        <span class="input-group-text">Novo nome</span>
+                        <input type="text" class="form-control" name="cidade_destino" maxlength="100"
+                               required placeholder="Novo nome da cidade">
+                        <button type="submit" class="btn btn-warning">
+                            <i class="fas fa-arrow-right-arrow-left me-1"></i>Renomear
+                        </button>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="confirmarEdit" name="confirmar" value="on" required>
+                        <label class="form-check-label small" for="confirmarEdit">
+                            Entendo que isto troca o nome em todos os registros desta cidade.
+                        </label>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

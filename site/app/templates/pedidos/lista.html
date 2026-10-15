@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Pedidos recebidos — MoveMentes{% endblock %}
+
+{% block content %}
+<h1 class="h4 mb-3"><i class="fas fa-inbox text-success"></i> Pedidos recebidos — {{ cidade }}</h1>
+
+<h2 class="h6">Pedidos de relatório</h2>
+<div class="card shadow-sm mb-4"><div class="table-responsive">
+  <table class="table table-sm align-middle mb-0">
+    <thead class="table-light"><tr><th>Quando</th><th>Nome</th><th>E-mail</th><th>Telefone</th><th>Vale até</th><th>Abriu</th><th>E-mail</th><th></th></tr></thead>
+    <tbody>
+      {% for p in pedidos %}
+      <tr>
+        <td class="small">{{ p.criado_em.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td class="small">{{ p.nome }}</td>
+        <td class="small">{{ p.email }}</td>
+        <td class="small">{{ p.telefone or '—' }}</td>
+        <td class="small">{{ p.expira_em.strftime('%d/%m/%Y') }}{% if not p.vigente %} <span class="badge bg-secondary">vencido</span>{% endif %}</td>
+        <td class="small">{{ p.visualizacoes or 0 }}</td>
+        <td class="small">{% if p.email_enviado %}<span class="text-success">enviado</span>{% else %}<span class="text-danger" title="{{ p.email_erro or '' }}">não saiu</span>{% endif %}</td>
+        <td class="text-end">{% if p.vigente %}<a class="btn btn-sm btn-outline-success py-0" href="{{ url_for('pedidos.relatorio_publico', token=p.token) }}" target="_blank">Abrir</a>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      {% if not pedidos %}<tr><td colspan="8" class="text-center text-muted py-3">Nenhum pedido.</td></tr>{% endif %}
+    </tbody>
+  </table>
+</div></div>
+
+<h2 class="h6">Acessos pedidos por atletas</h2>
+<div class="card shadow-sm mb-4"><div class="table-responsive">
+  <table class="table table-sm align-middle mb-0">
+    <thead class="table-light"><tr><th>Quando</th><th>Nome</th><th>E-mail</th><th>Situação</th><th></th></tr></thead>
+    <tbody>
+      {% for c in cadastros %}
+      <tr>
+        <td class="small">{{ c.criado_em.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td class="small">{{ c.usuario.nome }}</td>
+        <td class="small">{{ c.usuario.email }}</td>
+        <td class="small">
+          {% if c.aprovado_em %}liberado{% elif c.rejeitado_em %}recusado{% elif c.confirmado_em %}<strong>aguardando você</strong>{% else %}e-mail não confirmado{% endif %}
+        </td>
+        <td class="text-end">{% if c.confirmado_em %}<a class="btn btn-sm btn-outline-success py-0" href="{{ url_for('pedidos.aprovar', cid=c.id) }}">Ver</a>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      {% if not cadastros %}<tr><td colspan="5" class="text-center text-muted py-3">Nenhum pedido.</td></tr>{% endif %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}

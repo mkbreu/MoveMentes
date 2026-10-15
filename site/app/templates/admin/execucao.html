@@ -1,0 +1,496 @@
+{% extends "base.html" %}
+{% from "admin/_caixa_macros.html" import atalhos %}
+{% block title %}O que o projeto fez — MoveMentes{% endblock %}
+
+{% macro reais(v) -%}
+R$ {{ '{:,.2f}'.format(v or 0).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+{%- endmacro %}
+
+{% block content %}
+<style>
+  .ex-secao { scroll-margin-top: 80px; }
+  .ex-marca { font-size: .72rem; padding: .18rem .5rem; border-radius: 999px; }
+  .ex-ok { background: #eaf7d9; color: #2f4a1f; border: 1px solid #c6e39b; }
+  .ex-nao { background: #fdeaea; color: #8a2020; border: 1px solid #f2c2c2; }
+  .ex-esp { background: #f3f3f3; color: #6c757d; border: 1px solid #ddd; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
+  <h1 class="h4 mb-0">
+    <i class="fas fa-clipboard-check text-success"></i> O que o projeto fez — {{ cidade }}
+  </h1>
+  <form method="get" class="d-flex gap-2 align-items-center">
+    <label class="form-label small mb-0" for="ano">Ano</label>
+    <input class="form-control form-control-sm" style="width: 6rem;" type="number"
+           id="ano" name="ano" value="{{ ano }}">
+    <button class="btn btn-sm btn-outline-secondary">Ver</button>
+  </form>
+</div>
+{{ atalhos('execucao') }}
+
+<p class="text-muted small mb-3">
+  É daqui que saem os relatórios de prestação de contas. O que não estiver
+  registrado aqui não existe para quem audita.
+</p>
+
+<div class="d-flex flex-wrap gap-2 mb-4">
+  <a class="btn btn-sm btn-outline-secondary" href="#acoes">Ações e eventos ({{ acoes|length }})</a>
+  {% if acompanhamentos %}<a class="btn btn-sm btn-outline-secondary" href="#nutri">Acompanhamentos antigos ({{ acompanhamentos|length }})</a>{% endif %}
+  <a class="btn btn-sm btn-outline-secondary" href="#midia">Fotos e vídeos ({{ midias|length }})</a>
+  <a class="btn btn-sm btn-outline-success" href="{{ url_for('relatorios.index') }}">
+    <i class="fas fa-file-lines"></i> Gerar relatório
+  </a>
+</div>
+
+{# ==================== AÇÕES EDUCATIVAS ==================== #}
+<h2 class="h5 ex-secao mb-2" id="acoes">
+  <i class="fas fa-chalkboard-user text-success"></i> Ações e eventos do projeto
+</h2>
+<p class="text-muted small">
+  O conteúdo que já vai para o grupo conta — desde que fique arquivado com data
+  e autor. É a <strong>continuidade</strong> que sustenta a isenção; uma ação
+  isolada por semestre não cumpre.
+  {% if acoes %}Em {{ ano }}: <strong>{{ acoes|length }}</strong> ações,
+  <strong>{{ total_participantes }}</strong> pessoas alcançadas.{% endif %}
+</p>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+{# 20/09/2026 (item 73): so quem administra escreve aqui. Quem acompanha (visualizador, patrocinador) le a mesma pagina, sem os formularios. #}
+{% if current_user.pode_administrar %}
+    <form method="post" action="{{ url_for('execucao.nova_acao') }}"
+          enctype="multipart/form-data" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-12 col-md-3">
+        <label class="form-label small mb-1" for="a_tipo">O que é</label>
+        <select class="form-select form-select-sm" id="a_tipo" name="tipo">
+          {% for t in tipos_acao %}<option value="{{ t.nome }}" data-campos="{{ t.campos }}">{{ t.nome }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1" for="a_data">Data</label>
+        <input class="form-control form-control-sm" type="date" id="a_data" name="data"
+               value="{{ hoje }}" required>
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1" for="a_tema">Nome (tema ou evento)</label>
+        <input class="form-control form-control-sm" id="a_tema" name="tema" required
+               placeholder="Ex.: hidratação antes do treino · 1ª pedalada MoveMentes">
+      </div>
+      <div class="col-6 col-md-3" data-campo="ministrante">
+        <label class="form-label small mb-1" for="a_min">Quem organizou / ministrou</label>
+        <input class="form-control form-control-sm" id="a_min" name="ministrante">
+      </div>
+      <div class="col-6 col-md-2" data-campo="canal">
+        <label class="form-label small mb-1" for="a_canal">Canal</label>
+        <select class="form-select form-select-sm" id="a_canal" name="canal">
+          {% for v, r in canais %}<option value="{{ v }}">{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2" data-campo="participantes">
+        <label class="form-label small mb-1" for="a_part">Alcançou</label>
+        <input class="form-control form-control-sm" type="number" min="0"
+               id="a_part" name="participantes" placeholder="pessoas">
+      </div>
+      <div class="col-12 col-md-5" data-campo="descricao">
+        <label class="form-label small mb-1" for="a_desc">Do que se tratou</label>
+        <input class="form-control form-control-sm" id="a_desc" name="descricao">
+      </div>
+      <div class="col-12 col-md-5" data-campo="material">
+        <label class="form-label small mb-1" for="a_mat">Material (cartilha, imagem, PDF)</label>
+        <input class="form-control form-control-sm" type="file" id="a_mat" name="material">
+      </div>
+      <div class="col-12">
+        <button class="btn btn-sm btn-success"><i class="fas fa-check"></i> Registrar</button>
+      </div>
+    </form>
+{% endif %}
+  </div>
+</div>
+
+{% if current_user.is_master %}
+<details class="mb-3">
+  <summary class="small text-muted" style="cursor:pointer;"><i class="fas fa-sliders"></i> Tipos e campos</summary>
+  <div class="card shadow-sm mt-2"><div class="card-body">
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      {% for t in tipos_acao %}
+      <form method="post" action="{{ url_for('execucao.apagar_tipo', tid=t.id) }}" class="d-inline"
+            onsubmit="return confirm('Apagar o tipo {{ t.nome }}? O que já foi registrado com ele continua.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <span class="badge bg-light text-dark border">{{ t.nome }}
+          <span class="text-muted">· {{ t.lista_campos|length }} campos</span>
+          <button class="btn btn-sm p-0 ms-1 text-danger" title="Apagar tipo"><i class="fas fa-xmark"></i></button>
+        </span>
+      </form>
+      {% endfor %}
+    </div>
+    <form method="post" action="{{ url_for('execucao.novo_tipo') }}" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-12 col-md-3">
+        <label class="form-label small mb-1" for="t_nome">Novo tipo</label>
+        <input class="form-control form-control-sm" id="t_nome" name="nome" maxlength="30" required
+               placeholder="Ex.: Palestra">
+      </div>
+      <div class="col-12 col-md-7">
+        <span class="form-label small d-block mb-1">Campos para preencher</span>
+        {% for chave, rotulo in campos_acao %}
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="tc_{{ chave }}" name="campo_{{ chave }}" value="1" checked>
+          <label class="form-check-label small" for="tc_{{ chave }}">{{ rotulo }}</label>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="col-12 col-md-2"><button class="btn btn-sm btn-success w-100">Criar tipo</button></div>
+    </form>
+  </div></div>
+</details>
+{% endif %}
+
+<div class="card shadow-sm mb-4">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>Data</th><th>Nome</th><th>Quem</th><th>Canal</th>
+            <th class="text-end">Alcançou</th><th>Mídias</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for a in acoes %}
+        <tr>
+          <td class="small">{{ a.data.strftime('%d/%m') }}</td>
+          <td class="small">{{ a.tema }}
+            <span class="ex-marca ex-esp">{{ rotulo_tipo_acao.get(a.tipo or 'acao_educativa', a.tipo) }}</span>
+            {% if a.descricao %}<span class="d-block text-muted">{{ a.descricao }}</span>{% endif %}
+            {% if a.criado_por_id %}<span class="d-block text-muted" style="font-size:.72rem;">registrado por {{ autores.get(a.criado_por_id, '—') }}</span>{% endif %}
+          </td>
+          <td class="small">{{ a.ministrante or '—' }}</td>
+          <td class="small">{{ a.canal or '—' }}</td>
+          <td class="text-end small">{{ a.participantes or '—' }}</td>
+          <td class="small"><a href="#midia">{{ a.midias|length }}</a></td>
+          <td class="text-end text-nowrap">
+            {% if current_user.is_master %}
+            <form method="post" action="{{ url_for('execucao.apagar_acao', aid=a.id) }}" class="d-inline"
+                  onsubmit="return confirm('Apagar este registro? Será feita uma cópia do banco antes. As fotos e documentos ligados a ele NÃO são apagados.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Apagar"><i class="fas fa-trash"></i></button>
+            </form>
+            {% endif %}
+            {% if a.material_path %}
+            <a class="btn btn-sm btn-outline-secondary py-0 px-1"
+               href="{{ url_for('execucao.material_da_acao', aid=a.id) }}" title="Baixar material">
+              <i class="fas fa-paperclip"></i></a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not acoes %}
+        <tr><td colspan="7" class="text-center text-muted py-4">
+          Nada registrado em {{ ano }}.
+        </td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if acompanhamentos %}
+{# ==================== ACOMPANHAMENTO NUTRICIONAL ==================== #}
+<h2 class="h5 ex-secao mb-2" id="nutri">
+  <i class="fas fa-apple-whole text-success"></i> Acompanhamento nutricional (encerrado)
+</h2>
+<div class="alert alert-secondary small">Encerrado — só consulta.</div>
+<div class="alert alert-light border small">
+  <strong>O critério de escolha fica escrito.</strong> Perante quem audita,
+  <em>"por que essa pessoa e não outra?"</em> é a pergunta que derruba um
+  projeto social. A ordem combinada é: manifestou interesse → tem condição de
+  saúde declarada (com consentimento) → cumpriu as metas com regularidade.
+  <span class="d-block mt-1 text-muted">
+    A condição de saúde em si não aparece aqui — ela fica na inscrição da
+    pessoa, de onde ela mesma pode apagá-la.
+  </span>
+</div>
+
+{% if false %}{# formulário de novo acompanhamento desligado em 24/09/2026 #}
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+{# 20/09/2026 (item 73): so quem administra escreve aqui. Quem acompanha (visualizador, patrocinador) le a mesma pagina, sem os formularios. #}
+{% if current_user.pode_administrar %}
+    <form method="post" action="{{ url_for('execucao.novo_acompanhamento') }}" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1" for="n_nome">Quem vai ser acompanhado</label>
+        <input class="form-control form-control-sm" id="n_nome" name="beneficiario_nome"
+               list="lista_candidatos" required>
+        <datalist id="lista_candidatos">
+          {% for c in candidatos %}<option value="{{ c.nome }}">{% endfor %}
+        </datalist>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small mb-1" for="n_prof">Profissional</label>
+        <input class="form-control form-control-sm" id="n_prof" name="profissional">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1" for="n_inicio">Início</label>
+        <input class="form-control form-control-sm" type="date" id="n_inicio" name="inicio"
+               value="{{ hoje }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1" for="n_custo">Custo</label>
+        <input class="form-control form-control-sm" id="n_custo" name="custo" placeholder="0,00">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1" for="n_doc">Nº do documento</label>
+        <input class="form-control form-control-sm" id="n_doc" name="documento_numero">
+      </div>
+
+      <div class="col-12">
+        <label class="form-label small mb-1 d-block">Critérios atendidos</label>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="c1" name="criterio_interesse" value="sim">
+          <label class="form-check-label small" for="c1">Manifestou interesse</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="c2" name="criterio_sorteio" value="sim">
+          <label class="form-check-label small" for="c2">Sorteado entre os participantes</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="c3" name="criterio_regularidade" value="sim">
+          <label class="form-check-label small" for="c3">Cumpriu as metas com regularidade</label>
+        </div>
+      </div>
+      <div class="col-12">
+        <label class="form-label small mb-1" for="n_obs">Como a escolha foi feita</label>
+        <input class="form-control form-control-sm" id="n_obs" name="criterio_observacao"
+               placeholder="Ex.: entre os 4 que pediram, foi quem bateu a meta nos 6 meses">
+      </div>
+      <div class="col-12">
+        <button class="btn btn-sm btn-success"><i class="fas fa-check"></i> Registrar acompanhamento</button>
+        <span class="text-muted small ms-2">O período sugerido é de 3 meses.</span>
+      </div>
+    </form>
+{% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% for n in acompanhamentos %}
+<div class="card shadow-sm mb-2">
+  <div class="card-body py-3">
+    <div class="d-flex justify-content-between flex-wrap gap-2">
+      <div>
+        <strong>{{ n.beneficiario_nome }}</strong>
+        <span class="ex-marca {{ 'ex-ok' if n.situacao == 'concluido' else 'ex-esp' }}">
+          {{ dict(situacoes).get(n.situacao, n.situacao) }}
+        </span>
+        <span class="d-block text-muted small">
+          {% if n.inicio %}{{ n.inicio.strftime('%d/%m/%Y') }}{% endif %}
+          {% if n.fim %} a {{ n.fim.strftime('%d/%m/%Y') }}{% endif %}
+          {% if n.profissional %} · {{ n.profissional }}{% endif %}
+          {% if n.custo %} · {{ reais(n.custo) }}{% endif %}
+        </span>
+        <span class="d-block small mt-1">
+          <span class="ex-marca {{ 'ex-ok' if n.criterio_interesse else 'ex-nao' }}">interesse</span>
+          {% if n.criterio_saude %}
+          <span class="ex-marca ex-ok" title="Registro antigo, de antes da condição de saúde sair do cadastro">condição de saúde (antigo)</span>
+          {% endif %}
+          <span class="ex-marca {{ 'ex-ok' if n.criterio_sorteio else 'ex-nao' }}">sorteio</span>
+          <span class="ex-marca {{ 'ex-ok' if n.criterio_regularidade else 'ex-nao' }}">regularidade</span>
+        </span>
+        {% if n.criterio_observacao %}
+        <span class="d-block text-muted small mt-1">{{ n.criterio_observacao }}</span>
+        {% endif %}
+      </div>
+{# 20/09/2026 (item 73): so quem administra escreve aqui. Quem acompanha (visualizador, patrocinador) le a mesma pagina, sem os formularios. #}
+{% if current_user.pode_administrar %}
+      <form method="post" action="{{ url_for('execucao.atualizar_acompanhamento', aid=n.id) }}"
+            class="text-end" style="min-width: 16rem;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="p{{ n.id }}" name="entregou_plano"
+                 value="sim" {{ 'checked' if n.entregou_plano }}>
+          <label class="form-check-label small" for="p{{ n.id }}">plano</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="k{{ n.id }}" name="entregou_cartilha"
+                 value="sim" {{ 'checked' if n.entregou_cartilha }}>
+          <label class="form-check-label small" for="k{{ n.id }}">cartilha</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="r{{ n.id }}" name="entregou_relatorio"
+                 value="sim" {{ 'checked' if n.entregou_relatorio }}>
+          <label class="form-check-label small" for="r{{ n.id }}">relatório</label>
+        </div>
+        <select class="form-select form-select-sm d-inline-block mt-1" style="width: 9rem;"
+                name="situacao">
+          {% for v, r in situacoes %}
+            <option value="{{ v }}" {{ 'selected' if n.situacao == v }}>{{ r }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-sm btn-outline-success mt-1">Salvar</button>
+      </form>
+{% endif %}
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{# ==================== MÍDIA ==================== #}
+<h2 class="h5 ex-secao mb-2 mt-4" id="midia">
+  <i class="fas fa-images text-success"></i> Fotos, vídeos e documentos
+</h2>
+<div class="alert alert-warning small">
+  <strong>Nada nasce público.</strong> O arquivo entra interno e só fica público
+  depois que alguém confirma que há autorização de imagem de quem aparece.
+  <span class="d-block mt-1">
+    <strong>Vídeo não roda no servidor</strong> — ele fica guardado aqui,
+    alguém publica no YouTube, e o link entra no lugar.
+  </span>
+</div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+{# 20/09/2026 (item 73): so quem administra escreve aqui. Quem acompanha (visualizador, patrocinador) le a mesma pagina, sem os formularios. #}
+{% if current_user.pode_administrar %}
+    <form method="post" action="{{ url_for('execucao.nova_midia') }}"
+          enctype="multipart/form-data" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1" for="m_acao">Pertence a qual ação / evento?</label>
+        <select class="form-select form-select-sm" id="m_acao" name="acao_id">
+          <option value="">— nenhum (fica solta) —</option>
+          {% for a in todas_acoes %}
+          <option value="{{ a.id }}">{{ a.data.strftime('%d/%m/%Y') }} · {{ a.tema }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1" for="m_tipo">Tipo</label>
+        <select class="form-select form-select-sm" id="m_tipo" name="tipo" required>
+          {% for v, r in tipos_midia %}<option value="{{ v }}">{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1" for="m_data">Data</label>
+        <input class="form-control form-control-sm" type="date" id="m_data" name="data" value="{{ hoje }}">
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1" for="m_tit">Título</label>
+        <input class="form-control form-control-sm" id="m_tit" name="titulo" required>
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1" for="m_arq">Arquivo</label>
+        <input class="form-control form-control-sm" type="file" id="m_arq" name="arquivo">
+      </div>
+      <div class="col-12 col-md-6">
+        <label class="form-label small mb-1" for="m_desc">Descrição</label>
+        <input class="form-control form-control-sm" id="m_desc" name="descricao">
+      </div>
+      <div class="col-12 col-md-6">
+        <label class="form-label small mb-1" for="m_yt">Link do YouTube (para vídeo)</label>
+        <input class="form-control form-control-sm" id="m_yt" name="link_youtube"
+               placeholder="https://youtu.be/…">
+      </div>
+      <div class="col-12">
+        <button class="btn btn-sm btn-success"><i class="fas fa-upload"></i> Guardar</button>
+      </div>
+    </form>
+{% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  {% for m in midias %}
+  <div class="col-12 col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body py-3">
+        <div class="d-flex justify-content-between align-items-start gap-2">
+          <div>
+            <strong>{{ m.titulo }}</strong>
+            <span class="ex-marca {{ 'ex-ok' if m.publico else 'ex-esp' }}">
+              {{ 'pública' if m.publico else 'interna' }}
+            </span>
+            <span class="d-block text-muted small">
+              {{ dict(tipos_midia).get(m.tipo, m.tipo) }}
+              {% if m.acao %} · <strong>{{ m.acao.tema }}</strong>{% else %} · <em>sem evento vinculado</em>{% endif %}
+              {% if m.data %} · {{ m.data.strftime('%d/%m/%Y') }}{% endif %}
+              {% if m.arquivo_bytes %} · {{ (m.arquivo_bytes / 1048576)|round(1) }} MB{% endif %}
+            </span>
+            {% if m.descricao %}<span class="d-block small mt-1">{{ m.descricao }}</span>{% endif %}
+            {% if m.link_youtube %}
+            <a class="small d-block mt-1" href="{{ m.link_youtube }}" target="_blank" rel="noopener">
+              <i class="fab fa-youtube"></i> ver no YouTube</a>
+            {% endif %}
+          </div>
+          <div class="text-end">
+            {% if m.arquivo_path %}
+            <a class="btn btn-sm btn-outline-secondary py-0 px-1"
+               href="{{ url_for('execucao.arquivo_da_midia', mid=m.id) }}" title="Baixar">
+              <i class="fas fa-download"></i></a>
+            {% endif %}
+{# 20/09/2026 (item 73): so quem administra escreve aqui. Quem acompanha (visualizador, patrocinador) le a mesma pagina, sem os formularios. #}
+{% if current_user.pode_administrar %}
+            <form method="post" action="{{ url_for('execucao.apagar_midia', mid=m.id) }}"
+                  class="d-inline"
+                  onsubmit="return confirm('Apagar esta mídia? Será feita uma cópia do banco antes.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Apagar">
+                <i class="fas fa-trash"></i></button>
+            </form>
+{% endif %}
+          </div>
+        </div>
+
+{# 20/09/2026 (item 73): so quem administra escreve aqui. Quem acompanha (visualizador, patrocinador) le a mesma pagina, sem os formularios. #}
+{% if current_user.pode_administrar %}
+        <form method="post" action="{{ url_for('execucao.liberar_midia', mid=m.id) }}"
+              class="border-top mt-2 pt-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="cs{{ m.id }}" name="consentimento"
+                   value="sim" {{ 'checked' if m.consentimento_confirmado }}>
+            <label class="form-check-label small" for="cs{{ m.id }}">
+              Quem aparece autorizou o uso da imagem
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="pb{{ m.id }}" name="publico"
+                   value="sim" {{ 'checked' if m.publico }}>
+            <label class="form-check-label small" for="pb{{ m.id }}">Pode ser pública</label>
+          </div>
+          {% if m.tipo == 'video' and not m.link_youtube %}
+          <input class="form-control form-control-sm mt-1" name="link_youtube"
+                 placeholder="Link do YouTube (obrigatório para vídeo público)">
+          {% endif %}
+          <input class="form-control form-control-sm mt-1" name="consentimento_observacao"
+                 placeholder="Quem autorizou, e quando (opcional)"
+                 value="{{ m.consentimento_observacao or '' }}">
+          <button class="btn btn-sm btn-outline-success mt-2">Salvar</button>
+        </form>
+{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  {% if not midias %}
+  <div class="col-12"><p class="text-muted small">Nenhuma mídia guardada ainda.</p></div>
+  {% endif %}
+</div>
+
+<script>
+(function () {
+  var sel = document.getElementById('a_tipo');
+  if (!sel) return;
+  function aplicar() {
+    var opt = sel.options[sel.selectedIndex];
+    var campos = (opt && opt.getAttribute('data-campos') || '').split(',');
+    document.querySelectorAll('[data-campo]').forEach(function (el) {
+      var ligado = campos.indexOf(el.getAttribute('data-campo')) !== -1;
+      el.style.display = ligado ? '' : 'none';
+      el.querySelectorAll('input,select,textarea').forEach(function (i) { i.disabled = !ligado; });
+    });
+  }
+  sel.addEventListener('change', aplicar);
+  aplicar();
+})();
+</script>
+{% endblock %}

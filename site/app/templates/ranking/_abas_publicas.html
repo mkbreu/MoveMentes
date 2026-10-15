@@ -1,0 +1,17 @@
+{# ABAS DA PÁGINA PÚBLICA (P-137-c, 25/09/2026): Mensal, Trimestral, Semestral
+   e Anual, nas duas páginas do link do grupo. A lista vem pronta da rota
+   (`_abas_publicas`), com o mês de referência já dentro de cada endereço.
+   Grade 2×2 no celular, uma linha no computador — nunca uma aba sozinha. #}
+{% if abas %}
+<nav class="row g-2 mt-2" aria-label="Período do ranking">
+  {% for aba in abas %}
+  <div class="col-6 col-md-3">
+    <a class="btn w-100 text-nowrap {% if aba.ativa %}btn-primary{% else %}btn-outline-primary{% endif %}"
+       {% if aba.ativa %}aria-current="page"{% endif %}
+       href="{{ aba.url }}">
+      <i class="fas {{ aba.icone }} me-1"></i>{{ aba.rotulo }}
+    </a>
+  </div>
+  {% endfor %}
+</nav>
+{% endif %}

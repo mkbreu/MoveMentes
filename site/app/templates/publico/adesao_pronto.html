@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Inscrição feita — MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 700px;">
+  <div class="card shadow-sm">
+    <div class="card-body text-center py-5">
+      <i class="fas fa-circle-check text-success" style="font-size: 3rem;"></i>
+      <h1 class="h4 mt-3">Inscrição feita, {{ a.nome.split()[0] }}!</h1>
+      <p class="text-muted">
+        Você entrou no MoveMentes de <strong>{{ a.cidade }}</strong>.
+        Registramos o seu aceite em
+        {{ a.aceite_em.strftime('%d/%m/%Y') }} às {{ a.aceite_em.strftime('%H:%M') }}
+        (versão {{ a.versao_termos }} dos termos).
+      </p>
+
+      <div class="alert alert-light border text-start mt-4">
+        <p class="mb-2"><strong>Guarde este endereço.</strong> É por ele que você
+        volta para ver os seus dados, mudar de ideia sobre qualquer autorização
+        ou sair do projeto — sem precisar de senha.</p>
+        <div class="input-group">
+          <input type="text" class="form-control" readonly id="meuLink"
+                 value="{{ url_for('adesao.meus_dados', chave=a.chave, _external=True) }}"
+                 onfocus="this.select()">
+          <button class="btn btn-outline-success" type="button"
+                  onclick="document.getElementById('meuLink').select();document.execCommand('copy');this.innerHTML='Copiado!'">
+            Copiar
+          </button>
+        </div>
+      </div>
+
+      {% if link_grupo %}
+      <div class="alert alert-success text-start">
+        <strong>Falta um passo: entrar no grupo de WhatsApp de {{ a.cidade }}.</strong>
+        É lá que você posta o link da sua atividade no Strava, todo mês — sem
+        isso não há o que contar.
+        <a href="{{ link_grupo }}" target="_blank" rel="noopener"
+           class="btn btn-success w-100 mt-3">
+          <i class="fab fa-whatsapp"></i> Entrar no grupo de {{ a.cidade }}
+        </a>
+        <div class="input-group mt-2">
+          <input type="text" class="form-control form-control-sm" readonly
+                 id="linkGrupo" value="{{ link_grupo }}" onfocus="this.select()">
+          <button class="btn btn-outline-success btn-sm" type="button"
+                  onclick="document.getElementById('linkGrupo').select();document.execCommand('copy');this.textContent='Copiado!'">
+            Copiar
+          </button>
+        </div>
+      </div>
+      {% else %}
+      <div class="alert alert-warning text-start small">
+        <strong>O que acontece agora:</strong> a organização da sua cidade vai
+        entrar em contato pelo telefone que você cadastrou, com o link do
+        grupo de WhatsApp — é lá que você posta os links do Strava, todo mês.
+      </div>
+      {% endif %}
+
+      <a href="{{ url_for('index') }}" class="btn btn-outline-secondary mt-2">
+        <i class="fas fa-house"></i> Ver os números do projeto
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

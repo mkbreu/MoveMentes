@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Adicionar Usuário - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center py-4">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-user-plus"></i> Adicionar Novo Usuário</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin.add_user') }}">
+                    {{ form.hidden_tag() }}
+
+                    <div class="mb-3">
+                        {{ form.nome.label(class="form-label") }}
+                        {{ form.nome(class="form-control", placeholder="Nome completo do usuário") }}
+                        {% if form.nome.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.nome.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.email.label(class="form-label") }}
+                        {{ form.email(class="form-control", placeholder="email@exemplo.com") }}
+                        {% if form.email.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.email.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.telefone.label(class="form-label") }}
+                        {{ form.telefone(class="form-control", placeholder="(DD) 9XXXX-XXXX") }}
+                        <div class="form-text">
+                            É por este número que o sistema avisa quando algo falha no envio do ranking.
+                            Também serve para entrar no sistema, no lugar do e-mail.
+                        </div>
+                        {% if form.telefone.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.telefone.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.cidade.label(class="form-label") }}
+                        {{ form.cidade(class="form-select") }}
+                        {% if form.cidade.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.cidade.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    {# NOVIDADE: Campos Tipo e Ativo para admins #}
+                    <div class="mb-3">
+                        {{ form.tipo.label(class="form-label") }}
+                        {{ form.tipo(class="form-select") }}
+                        {% if form.tipo.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.tipo.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        {{ form.ativo(class="form-check-input") }}
+                        {{ form.ativo.label(class="form-check-label") }}
+                        {% if form.ativo.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.ativo.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="alert alert-warning small py-2">
+                        <i class="fas fa-key"></i> A senha abaixo é <strong>provisória</strong>:
+                        serve para a pessoa entrar uma vez. No primeiro acesso o sistema
+                        exige que ela escolha uma senha própria.
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.password.label(class="form-label") }}
+                        {{ form.password(class="form-control", placeholder="Mínimo 6 caracteres") }}
+                        {% if form.password.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.password.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.confirm_password.label(class="form-label") }}
+                        {{ form.confirm_password(class="form-control", placeholder="Repita a senha") }}
+                        {% if form.confirm_password.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.confirm_password.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

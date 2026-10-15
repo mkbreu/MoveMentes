@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}Painel - MoveMentes{% endblock %}
+
+{#
+  O PAINEL VIROU SO ASSUNTOS  (pedido do dono em 09/08)
+
+  Antes: 18 cards soltos aqui, cada um com um paragrafo e um botao "Abrir".
+  Achar alguma coisa exigia ler a tela inteira, e mesmo assim tela nova
+  aparecia no sumario em vermelho porque ninguem lembrava de criar o card.
+
+  Agora: um card por ASSUNTO. Clicar abre a tela daquele assunto, com os
+  cards das paginas dentro. O card inteiro e o botao, como na /welcome.
+
+  A lista nao esta escrita aqui — vem de `app/indice.py`. Card novo se cria
+  la, numa linha, e ele aparece nos tres lugares de uma vez (painel, tela do
+  assunto e sumario), sem chance de discordarem entre si.
+#}
+
+{% block content %}
+<div class="container py-4">
+    <div class="text-center mb-4">
+        <h1 class="h2 mb-2">
+            <i class="fas fa-user-shield text-primary"></i> Painel
+        </h1>
+        <p class="text-muted mb-0">
+            Escolha o assunto. Dentro de cada um estão as telas dele.
+        </p>
+    </div>
+
+    {# ===== ALAVANCA DO MODO TESTE (P-27) =====
+       Fica no TOPO do painel porque é o estado mais importante do sistema: com
+       ela ligada, nada chega ao grupo — e não saber disso já custou ao dono
+       achar que a automação estava quebrada quando estava só em ensaio.
+       Ligar é um clique; DESLIGAR pede confirmação, porque é esse clique que
+       abre o grupo de 80 pessoas, e não existe despublicar. #}
+    <div class="alert {% if modo_teste.ligado %}alert-warning{% else %}alert-success{% endif %}
+                d-flex align-items-center justify-content-between flex-wrap gap-2 py-2">
+      <div>
+        {% if modo_teste.ligado %}
+          <i class="fas fa-flask me-1"></i>
+          <strong>MODO TESTE LIGADO</strong> — nada vai para o grupo real.
+          O privado cai em <code>{{ modo_teste.destino }}</code>{% if modo_teste.grupo %},
+          e o que é de grupo vai para o <strong>grupo de teste</strong>{% endif %}.
+        {% else %}
+          <i class="fas fa-tower-broadcast me-1"></i>
+          <strong>No ar</strong> — as mensagens vão para o <strong>grupo</strong>.
+        {% endif %}
+      </div>
+      {# 19/09/2026 (item 73): o ESTADO todo mundo ve — quem vai clicar em
+         "Publicar agora" precisa saber se sai para o grupo. Quem LIGA e
+         DESLIGA e' so o master (a rota tambem recusa). #}
+      {% if current_user.is_master %}
+      {% if modo_teste.ligado %}
+      <form method="POST" action="{{ url_for('admin.modo_teste') }}"
+            onsubmit="return confirm('DESLIGAR o modo teste?\n\nA partir da próxima rodada as mensagens vão para o GRUPO, com todos os membros. Não existe desfazer depois de publicado.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="ligar" value="nao">
+        <button class="btn btn-sm btn-success">
+          <i class="fas fa-toggle-off me-1"></i>Desligar o teste (ir para o grupo)
+        </button>
+      </form>
+      {% else %}
+      <form method="POST" action="{{ url_for('admin.modo_teste') }}"
+            class="d-flex gap-2 align-items-center flex-wrap">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="ligar" value="sim">
+        <input type="text" name="destino" class="form-control form-control-sm"
+               style="max-width:11rem;" placeholder="DD9XXXXXXXX"
+               value="{{ modo_teste.destino or '' }}">
+        {# GRUPO DE TESTE: sem ele, mensagem de grupo vira mensagem privada no
+           ensaio — e aí a menção com @ não marca ninguém e o teste não prova
+           o que interessa. Em branco, tudo cai no número, como era antes. #}
+        <input type="text" name="grupo_teste" class="form-control form-control-sm"
+               style="max-width:17rem;" placeholder="grupo de teste …@g.us (opcional)"
+               value="{{ modo_teste.grupo or '' }}">
+        <button class="btn btn-sm btn-outline-warning">
+          <i class="fas fa-toggle-on me-1"></i>Ligar o modo teste
+        </button>
+        <span class="small text-muted">DDD + número com o 9. O 55 eu coloco.</span>
+      </form>
+      {% endif %}
+      {% endif %}
+    </div>
+
+    {# ===== ALAVANCA "MANTER LIGADA" (17/08/2026, item 4.1-b; D3) =====
+       Ao lado do modo teste, de propósito: são as duas alavancas manuais do
+       painel. Esta não decide para onde vai a mensagem — decide se a máquina
+       da automação pode fazer a parada limpa de hoje. Sem prazo: some quando
+       o próprio dono desmarcar.
+       SÓ O MASTER SUPREMO VÊ: é o computador dele, é dele a escolha — e
+       mostrar para admin de cidade sem automação própria só confundiria
+       (regra do dono, plano attach-tidy-globe D3). #}
+    {# ============ A AUTOMACAO DE PE, COM PRAZO (09/09/2026) ============
+       BLOCO SEPARADO de "manter a maquina ligada" de proposito: aquele fala do
+       COMPUTADOR, este dos CONTAINERS da aplicacao. Outro servico da maquina nao
+       entra aqui -- ele fica de pe enquanto a maquina estiver ligada, porque
+       alguem pode estar usando enquanto trabalha, e isso nao tem hora. #}
+    {% set adp = automacao_de_pe if automacao_de_pe is defined else {'visivel': False} %}
+    {% if adp.visivel %}
+    <div class="alert {% if adp.ativo %}alert-warning{% else %}alert-light border{% endif %} py-2">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+          <i class="fas fa-server me-1"></i>
+          {# O TITULO DIZ O ESTADO (15/09/2026). Era "Automação de pé" fixo nos
+             dois casos; depois da parada limpa (feita às 14:40) o dono leu o
+             título e entendeu que ela seguia de pé. #}
+          {# 18/09/2026 (Pendente 15): pedido não é "de pé" até o WhatsApp responder. #}
+          <strong>{% if adp.ativo and adp.subiu is sameas false %}Automação pedida — subindo{% elif adp.ativo %}Automação de pé{% else %}Automação parada{% endif %}</strong>
+          {% if adp.ativo and adp.subiu is sameas false %}
+            <div class="small mt-1">
+              Ainda não está de pé: a máquina sobe o WhatsApp em alguns minutos
+              (se estiver dormindo, é acordada antes). Recarregue a página para ver.
+            </div>
+          {% endif %}
+          {% if adp.ativo %}
+            <div class="small mt-1">
+              Ligada a pedido de {{ adp.por or 'você' }} — {{ adp.texto }}.
+              Quando o prazo acabar, ela para sozinha, com parada limpa.
+            </div>
+          {% else %}
+            <div class="small text-muted mt-1">
+              Sobe o WhatsApp e o processamento e mantém de pé pelo tempo que
+              você escolher — para conferir alguma coisa fora do horário do
+              ranking. O outro serviço da máquina não é afetado.
+            </div>
+          {% endif %}
+        </div>
+        <form method="POST" action="{{ url_for('admin.automacao_manter_de_pe') }}"
+              class="d-flex gap-2 flex-wrap align-items-center">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {# O SELETOR MOSTRA O QUE ESTÁ VALENDO (17/09/2026, achado do dono).
+             "1 hora" era fixo: com "até eu mandar parar" ativo a tela mostrava
+             "1 hora", e um novo clique em "Manter de pé" REBAIXAVA o prazo
+             para 1 hora sem avisar — e o Guardião derrubava depois. Sem nada
+             ativo, "1 hora" continua sendo o ponto de partida. #}
+          {% set _sem_prazo = adp.ativo and adp.containers_ate == -1 %}
+          <select name="duracao" class="form-select form-select-sm" style="width:auto;">
+            <option value="30">30 minutos</option>
+            <option value="60" {% if not _sem_prazo %}selected{% endif %}>1 hora</option>
+            <option value="120">2 horas</option>
+            <option value="180">3 horas</option>
+            <option value="ate-desligar" {% if _sem_prazo %}selected{% endif %}>até eu mandar parar</option>
+          </select>
+          <button class="btn btn-sm btn-primary">
+            <i class="fas fa-play me-1"></i>Manter de pé
+          </button>
+        </form>
+      </div>
+      {# Sempre visível, não só quando adp.ativo (correção de 10/09/2026,
+         pedido do dono): antes só aparecia depois de já ter clicado "Manter
+         de pé", escondendo o botão exatamente de quem queria parar uma
+         automação que subiu sozinha (ex.: pela janela normal do ranking).
+         Clicar sem nada de pé é seguro e não faz nada de errado — grava
+         containers_ate=0 de novo (idempotente) e o Guardião só manda
+         `docker stop` se o WAHA estiver mesmo rodando. #}
+      <form method="POST" action="{{ url_for('admin.automacao_manter_de_pe') }}" class="mt-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="duracao" value="parar">
+        <button class="btn btn-sm btn-outline-secondary">
+          <i class="fas fa-stop me-1"></i>Parar a automação agora (parada limpa)
+        </button>
+      </form>
+    </div>
+    {% endif %}
+
+    {% if manter_ligada.visivel %}
+    <div class="alert {% if manter_ligada.ligado %}alert-warning{% else %}alert-light border{% endif %}
+                d-flex align-items-center justify-content-between flex-wrap gap-2 py-2">
+      <div>
+        <i class="fas fa-plug me-1"></i>
+        {% if manter_ligada.ligado %}
+          <strong>MÁQUINA MARCADA PARA FICAR LIGADA</strong> — ela não vai se
+          desligar sozinha até você desmarcar aqui.
+        {% else %}
+          <strong>Manter ligada</strong>
+          <span class="small text-muted">— desliga sozinha no horário de sempre.</span>
+        {% endif %}
+      </div>
+      <form method="POST" action="{{ url_for('admin.manter_ligada') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="ligar" value="{{ 'nao' if manter_ligada.ligado else 'sim' }}">
+        <button class="btn btn-sm {% if manter_ligada.ligado %}btn-warning{% else %}btn-outline-secondary{% endif %}">
+          {% if manter_ligada.ligado %}
+            <i class="fas fa-toggle-on me-1"></i>Desmarcar
+          {% else %}
+            <i class="fas fa-toggle-off me-1"></i>Manter ligada
+          {% endif %}
+        </button>
+      </form>
+    </div>
+    {% endif %}
+
+    {# ===== PUBLICAR O RANKING AGORA (15/08/2026) =====
+       Do lado do modo teste de propósito: são as duas alavancas que decidem
+       o que sai e para onde. O botão NÃO publica sozinho — ele pede à
+       automação, que faz o caminho inteiro (ligar, esperar ficar saudável,
+       coletar, processar, publicar) com as mesmas travas de sempre. #}
+    {# Card so pode QUEBRAR o painel inteiro se a variavel faltar — o 500 de
+       15/08 foi um worker com template novo e codigo velho (py-autoreload
+       nao tinha alcancado ainda). "pr" nunca fica undefined: pior caso vira
+       {'tem': False}, e o card mostra o estado neutro em vez de estourar. #}
+    {% set pr = pedido_ranking if pedido_ranking is defined else {'tem': False} %}
+    <div class="alert {% if pr.em_aberto or pr.atendido %}alert-info{% else %}alert-light border{% endif %}
+                d-flex align-items-center justify-content-between flex-wrap gap-2 py-2">
+      <div>
+        <i class="fas fa-paper-plane me-1"></i>
+        <strong>Publicar o ranking agora</strong>
+        {% if pr.tem and (pr.em_aberto or pr.atendido) %}
+          <div class="small mt-1">{{ pr.frase }}</div>
+        {% else %}
+          <div class="small text-muted mt-1">
+            Liga o computador da automação, espera tudo ficar pronto, lê o grupo,
+            processa os links e publica — igual ao horário automático.
+          </div>
+        {% endif %}
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        {% if pr.em_aberto %}
+        <form method="POST" action="{{ url_for('admin.publicar_agora_cancelar') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-xmark me-1"></i>Cancelar o pedido
+          </button>
+        </form>
+        {% else %}
+        <form method="POST" action="{{ url_for('admin.publicar_agora') }}"
+              onsubmit="return confirm('Publicar o ranking agora?\n\n{% if modo_teste.ligado %}O modo teste está LIGADO: nada vai para o grupo real.{% else %}As mensagens vão para o GRUPO, com todos os membros.{% endif %}\n\nSe os km não mudaram desde a última publicação, o ranking não sai — e você vê o motivo aqui.');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm {% if modo_teste.ligado %}btn-outline-primary{% else %}btn-primary{% endif %}">
+            <i class="fas fa-bolt me-1"></i>Publicar agora
+          </button>
+        </form>
+        {% endif %}
+        {# EXECUTAR PEDIDOS AGORA (17/09/2026, pedido do dono). "Manter de pé",
+           "Conectar" com o container parado e mensagens na fila esperam a
+           máquina passar (Guardião 10 min, fila 15 min). Este botão faz a
+           máquina chamar os dois NA HORA — sem publicar ranking. #}
+        <form method="POST" action="{{ url_for('admin.executar_pedidos_agora') }}"
+              onsubmit="return confirm('Executar agora o que está esperando a máquina?\n\nSobe os containers pedidos, atende a conexão de WhatsApp e entrega as mensagens na fila. Não publica ranking.');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-outline-secondary"
+                  title="Faz andar agora o que está esperando a máquina, sem publicar ranking">
+            <i class="fas fa-forward-fast me-1"></i>Executar pedidos agora
+          </button>
+        </form>
+      </div>
+    </div>
+
+    {# Aviso da sessao do Strava: nunca falha calado. Vermelho = precisa de acao. #}
+    {% if current_user.is_supremo and not strava_info.configurado %}
+    <div class="alert alert-danger d-flex align-items-center gap-2">
+        <i class="fas fa-triangle-exclamation fa-lg"></i>
+        <div class="flex-grow-1">
+            <strong>Conexão com o Strava não configurada.</strong>
+            A importação por perfil e a conferência de km ficam indisponíveis até conectar.
+        </div>
+        <a href="{{ url_for('admin.strava_sessao') }}" class="btn btn-sm btn-light">Conectar agora</a>
+    </div>
+    {% elif current_user.is_supremo and strava_saude and not strava_saude.ok %}
+    <div class="alert alert-danger d-flex align-items-center gap-2">
+        <i class="fas fa-triangle-exclamation fa-lg"></i>
+        <div class="flex-grow-1">
+            <strong>A conexão com o Strava expirou.</strong>
+            {{ strava_saude.message or 'Reconecte para voltar a importar e conferir km.' }}
+        </div>
+        <a href="{{ url_for('admin.strava_sessao') }}" class="btn btn-sm btn-light">Reconectar</a>
+    </div>
+    {% endif %}
+
+    <div class="row g-3 align-items-stretch">
+        {% for cat in categorias %}
+        <div class="col-6 col-md-4 col-xl-3">
+            <a href="{{ url_for('admin.area', chave=cat.chave) }}"
+               class="card-botao"
+               aria-label="{{ cat.titulo }} — {{ cat.telas|length }} telas">
+                <div class="card shadow-sm h-100 border-{{ cat.cor }}">
+                    <div class="card-body text-center d-flex flex-column">
+                        <i class="fas {{ cat.icone }} icone-card text-{{ cat.cor }}"></i>
+                        <h5 class="card-title mb-1">{{ cat.titulo }}</h5>
+                        <p class="small text-muted mb-0 mt-auto">
+                            {{ cat.telas|length }} tela{{ 's' if cat.telas|length != 1 }}
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+
+        {# O sumario fica por ultimo de proposito: e a saida de emergencia de
+           quem nao achou pelos assuntos. Vermelho quando ha tela sem caminho. #}
+        <div class="col-6 col-md-4 col-xl-3">
+            <a href="{{ url_for('admin.indice_telas') }}"
+               class="card-botao {{ 'tela-orfa' if indice_orfas }}"
+               aria-label="Índice das telas">
+                <div class="card shadow-sm h-100 {{ 'border-danger' if indice_orfas else 'border-secondary' }}">
+                    <div class="card-body text-center d-flex flex-column">
+                        <i class="fas fa-sitemap icone-card {{ 'text-danger' if indice_orfas else 'text-secondary' }}"></i>
+                        <h5 class="card-title mb-1">Índice das telas</h5>
+                        <p class="small mb-0 mt-auto {{ 'text-danger' if indice_orfas else 'text-muted' }}">
+                            {% if indice_orfas %}
+                            {{ indice_orfas }} sem caminho até ela
+                            {% else %}
+                            todas as {{ indice_total }}, com explicação
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

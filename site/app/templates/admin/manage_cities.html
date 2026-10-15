@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Gerenciar Cidades - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="display-5 text-center"><i class="fas fa-city text-primary"></i> Gerenciar Cidades</h1>
+    <p class="lead text-center">Adicione, edite ou gerencie as cidades cobertas pelo projeto.</p>
+
+    <div class="text-end mb-3">
+        <a href="{{ url_for('admin.add_city') }}" class="btn btn-primary">
+            <i class="fas fa-plus-circle"></i> Adicionar Nova Cidade
+        </a>
+    </div>
+
+    {% if cities %}
+    <div class="table-responsive">
+        <table class="table table-hover table-striped shadow-sm rounded">
+            <thead class="bg-primary text-white">
+                <tr>
+                    <th>Cidade</th>
+                    <th>Ativa</th>
+                    <th>Meta Corrida (km)</th>
+                    <th>Meta Ciclismo (km)</th>
+                    <th>Conteúdo</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for city in cities %}
+                <tr>
+                    <td>{{ city.cidade }}</td>
+                    <td>
+                        {% if city.cidade in ativas %}
+                            <span class="badge bg-success">Ativa</span>
+                            {% if not city.ativa %}
+                            <span class="small text-muted d-block">(tem ranking rodando)</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge bg-secondary">Inativa</span>
+                        {% endif %}
+                        <form method="POST" action="{{ url_for('admin.toggle_cidade_ativa', city_name=city.cidade) }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-outline-secondary btn-sm mt-1">
+                                {{ 'Desativar' if city.ativa else 'Ativar' }}
+                            </button>
+                        </form>
+                    </td>
+                    <td>{{ city.meta_corrida_caminhada }}</td>
+                    <td>{{ city.meta_ciclismo }}</td>
+                    <td class="small text-muted">
+                        {{ resumo.get(city.cidade, {}).get('atividades', 0) }} atividades ·
+                        {{ resumo.get(city.cidade, {}).get('usuarios', 0) }} usuários
+                    </td>
+                    <td>
+                        <a href="{{ url_for('admin.edit_city', city_name=city.cidade) }}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-edit"></i> Editar
+                        </a>
+                        <a href="{{ url_for('ranking.patrocinadores') }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-handshake"></i> Patrocinadores
+                        </a>
+                        {% if current_user.is_supremo %}
+                        <a href="{{ url_for('admin.delete_city', city_name=city.cidade) }}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-trash"></i> Apagar
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info text-center mt-4">
+        Nenhuma cidade cadastrada ainda.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

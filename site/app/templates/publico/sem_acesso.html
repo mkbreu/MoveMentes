@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Sem acesso — MoveMentes{% endblock %}
+{% block content %}
+<div class="container" style="max-width: 640px;">
+  <div class="card shadow-sm">
+    <div class="card-body text-center py-5">
+      <i class="fas fa-lock text-secondary" style="font-size: 2.6rem;"></i>
+      <h1 class="h5 mt-3">Esta tela não faz parte do seu acesso</h1>
+      <p class="text-muted">{{ motivo }}</p>
+      <div class="d-flex flex-wrap gap-2 justify-content-center mt-4">
+        <a class="btn btn-success btn-sm" href="{{ url_for('ranking.consolidado_publico') }}">
+          <i class="fas fa-chart-line"></i> Números do projeto
+        </a>
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('config.prestacao') }}">
+          <i class="fas fa-receipt"></i> Prestação de contas
+        </a>
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin.indice_telas') }}">
+          <i class="fas fa-list"></i> O que posso ver
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

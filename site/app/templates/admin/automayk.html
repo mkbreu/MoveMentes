@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Automação — {{ cidade }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row"><div class="col-lg-10 mx-auto">
+
+    <h4 class="mb-1"><i class="fas fa-robot me-2 text-info"></i>Automação de {{ cidade }}</h4>
+
+    <div class="alert alert-secondary py-2 small">
+      <strong>Esta tela cuida do CANAL: por onde sai, em que horário e de qual WhatsApp.</strong><br>
+      O <em>texto</em> das mensagens não está aqui — está em
+      <a href="{{ url_for('admin.central_mensagens') }}" class="alert-link">Mensagens</a>.
+      A regra é simples: <strong>Mensagens = o que se fala. Automação = por onde e quando sai.</strong>
+    </div>
+
+    <p class="text-muted small">
+      Você enxerga e mexe <strong>apenas na sua cidade</strong> — o painel do WAHA, que dá
+      acesso às conversas de todas as cidades, não é exposto aqui de propósito.
+    </p>
+
+    {# ===== Semáforo ===== #}
+    <div class="row g-3 mb-4">
+      <div class="col-md-4">
+        <div class="card h-100 shadow-sm {% if waha_configurado %}border-success{% else %}border-warning{% endif %}">
+          <div class="card-body">
+            <h6 class="card-title"><i class="fab fa-whatsapp me-1"></i>WhatsApp</h6>
+            {% if waha_configurado %}
+              <span class="badge bg-success">configurado</span>
+            {% else %}
+              <span class="badge bg-warning text-dark">falta configurar</span>
+            {% endif %}
+            <div class="small text-muted mt-2">
+              Sessão: <code>{{ sessao }}</code><br>
+              Responsável: {{ responsavel or '—' }}
+              {% if pedido and pedido.situacao in ['pendente', 'em_andamento'] %}
+              <br><span class="badge bg-warning text-dark">vinculação na fila</span>
+              {% endif %}
+            </div>
+            <a href="{{ url_for('admin.whatsapp_sessao') }}" class="btn btn-sm btn-outline-success mt-2">Abrir</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card h-100 shadow-sm {% if token_ok %}border-success{% else %}border-warning{% endif %}">
+          <div class="card-body">
+            <h6 class="card-title"><i class="fas fa-key me-1"></i>Automação (token da API)</h6>
+            {% if token_ok %}
+              <span class="badge bg-success">gerado</span>
+            {% else %}
+              <span class="badge bg-warning text-dark">sem token</span>
+            {% endif %}
+            <div class="small text-muted mt-2">
+              É por ele que o orquestrador publica o ranking desta cidade.
+            </div>
+            <a href="{{ url_for('admin.automacao') }}" class="btn btn-sm btn-outline-info mt-2">Abrir</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card h-100 shadow-sm {% if strava_ok %}border-success{% elif strava_configurado %}border-danger{% else %}border-secondary{% endif %}">
+          <div class="card-body">
+            <h6 class="card-title"><i class="fab fa-strava me-1"></i>Sessão do Strava</h6>
+            {% if not strava_configurado %}
+              <span class="badge bg-secondary">não configurada</span>
+            {% elif strava_ok %}
+              <span class="badge bg-success">válida</span>
+            {% else %}
+              <span class="badge bg-danger">expirada</span>
+            {% endif %}
+            <div class="small text-muted mt-2">
+              Usada na conferência de km e na importação por perfil.
+            </div>
+            <a href="{{ url_for('admin.strava_sessao') }}" class="btn btn-sm btn-outline-danger mt-2">Abrir</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if meses_abertos %}
+    <div class="alert alert-warning">
+      <i class="fas fa-triangle-exclamation me-1"></i>
+      Mês(es) vencido(s) ainda sem fechar:
+      {% for a, m in meses_abertos %}<strong>{{ m }}/{{ a }}</strong>{{ ', ' if not loop.last }}{% endfor %}.
+      Enquanto não fecham, a lista de medalhistas ainda pode mudar.
+      <a href="{{ url_for('admin.fechamento') }}" class="alert-link">Fechar agora</a>.
+    </div>
+    {% endif %}
+
+    {# ===== Horarios, direto aqui ===== #}
+    <h6 class="text-muted mt-4">Horários de publicação</h6>
+    {% if problemas %}
+    <div class="alert alert-warning py-2 small">
+      {% for p in problemas %}<div><i class="fas fa-triangle-exclamation me-1"></i>{{ p }}</div>{% endfor %}
+    </div>
+    {% endif %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead><tr><th>Horário</th><th>O que sai nele</th></tr></thead>
+        <tbody>
+          {% for i in agenda %}
+          <tr class="{% if not i.ativo %}text-muted{% endif %}">
+            <td><strong>{{ i.horario }}</strong>{% if not i.ativo %} <span class="badge bg-secondary">desligado</span>{% endif %}</td>
+            <td class="small">
+              {% if i.envia_ranking %}<span class="badge bg-light text-dark border">Ranking</span>{% endif %}
+              {% if i.envia_patrocinadores %}<span class="badge bg-light text-dark border">Logos</span>{% endif %}
+              {% if i.envia_parabens %}<span class="badge bg-light text-dark border">Parabéns</span>{% endif %}
+              {% if i.envia_avisos %}<span class="badge bg-light text-dark border">Avisos</span>{% endif %}
+              {% if i.envia_promocoes %}<span class="badge bg-warning text-dark">Promoções</span>{% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="2" class="text-muted small">Nenhum horário cadastrado.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="small">
+      <a href="{{ url_for('admin.postagem') }}" class="btn btn-sm btn-outline-primary">
+        <i class="fas fa-clock me-1"></i>Mudar horários e quem publica
+      </a>
+    </p>
+
+    {# ===== Fila de saida ===== #}
+    <h6 class="text-muted mt-4">Fila de saída</h6>
+    <p class="small text-muted">
+      {% if resumo_fila.pendentes %}
+        <strong>{{ resumo_fila.pendentes }}</strong> mensagem(ns) esperando a próxima rodada
+        (a automação busca de 15 em 15 minutos com a máquina ligada).
+        {% if resumo_fila.falhadas %}
+        <span class="text-danger">{{ resumo_fila.falhadas }} desistiram depois de 3 tentativas.</span>
+        {% endif %}
+      {% else %}
+        Fila vazia — nada esperando para sair.
+      {% endif %}
+      <a href="{{ url_for('admin.central_mensagens') }}#aba-fila">Ver a fila</a>.
+    </p>
+
+    <h6 class="text-muted mt-4">Cópias de segurança</h6>
+    <p class="small text-muted">
+      Banco: <strong>{{ backups.config|length }}</strong> cópia(s), última em
+      {{ backups.ultima_config_em or 'nunca' }}.
+      Código: <strong>{{ backups.codigo|length }}</strong> cópia(s), última em
+      {{ backups.ultimo_codigo_em or 'nunca' }}.
+      Tudo em <code>{{ backups.pasta }}</code>.
+      <a href="{{ url_for('admin.fechamento') }}">Fechamento e backups</a>.
+    </p>
+
+    <div class="alert alert-light border small mt-4">
+      <strong>Não está aqui de propósito:</strong>
+      patrocinadores, etiquetas de medalha, telefones dos atletas e fechamento do mês.
+      Nada disso é automação — é conteúdo e operação do mês. Eles ficam no
+      <a href="{{ url_for('admin.dashboard') }}" class="alert-link">Painel</a>.
+    </div>
+
+  </div></div>
+</div>
+{% endblock %}

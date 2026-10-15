@@ -1,0 +1,17 @@
+[Unit]
+Description=Movimente-se — checagem de saude antes de cada publicacao
+
+[Timer]
+# A maquina liga so para publicar, entao checar "de 6 em 6 horas" nao faria
+# sentido: quase todo disparo cairia com ela desligada. O que interessa e
+# saber que a sessao do WhatsApp esta viva ANTES da janela de envio — se
+# caiu, sobra tempo de ler o QR antes das 10:30 / 22:00.
+OnCalendar=*-*-* 10:05:00
+OnCalendar=*-*-* 21:35:00
+# Tambem checa 3 minutos depois de a maquina ligar, seja qual for a hora.
+OnBootSec=3min
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

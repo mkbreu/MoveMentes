@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Usuário - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center py-4">
+    <div class="col-md-8 col-lg-7">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-user-edit"></i> Editar Usuário</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin.edit_user', user_id=user.id) }}">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.nome.label(class="form-label") }}
+                        {{ form.nome(class="form-control", placeholder="Nome completo do usuário", value=user.nome) }}
+                        {% if form.nome.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.nome.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.email.label(class="form-label") }}
+                        {{ form.email(class="form-control", placeholder="email@exemplo.com", value=user.email, readonly=True) }} {# Email readonly ate a P-103 (troca de e-mail com confirmacao) existir #}
+                        {% if form.email.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.email.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.telefone.label(class="form-label") }}
+                        {{ form.telefone(class="form-control", placeholder="(DD) 9XXXX-XXXX") }}
+                        <div class="form-text">Formato do WhatsApp. Serve para avisar o responsável e para entrar no sistema.</div>
+                        {% if form.telefone.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.telefone.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.cidade.label(class="form-label") }}
+                        {{ form.cidade(class="form-select") }}
+                        <div class="form-text">
+                            Trocar a cidade aqui <strong>transfere</strong> o usuário: ele passa a
+                            enxergar os dados da cidade nova e deixa de enxergar os da antiga.
+                        </div>
+                        {% if form.cidade.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.cidade.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.tipo.label(class="form-label") }}
+                        {{ form.tipo(class="form-select") }}
+                        {% if form.tipo.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.tipo.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        {{ form.ativo(class="form-check-input") }}
+                        {{ form.ativo.label(class="form-check-label") }}
+                        {% if form.ativo.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.ativo.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <p class="text-muted small mt-4">
+                        <em>Para alterar a senha, contate o administrador master ou utilize a função de recuperação de senha (se implementada).</em>
+                    </p>
+
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-save"></i> Salvar Alterações
+                        </button>
+                        <a href="{{ url_for('admin.manage_users') }}" class="btn btn-secondary btn-lg">
+                            <i class="fas fa-arrow-left"></i> Voltar para Gerenciar Usuários
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

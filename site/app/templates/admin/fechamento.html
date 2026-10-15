@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}Fechamento de mês e backups — MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row">
+    <div class="col-lg-10 mx-auto">
+
+      <h4 class="mb-1"><i class="fas fa-lock me-2"></i>Fechamento de mês</h4>
+      <p class="text-muted small">
+        Fechar o mês grava a <strong>versão oficial</strong> de {{ cidade }} naquele período:
+        medalhistas, patrocinador e texto do ranking congelados. Os quilômetros continuam
+        sendo somados e aparecendo na página do atleta e no anual — o que para de mudar é o
+        resultado oficial do mês. O sistema fecha sozinho {{ carencia }} dias depois do mês
+        virar, para dar tempo de chegar link atrasado.
+      </p>
+
+      {# ===== Meses abertos ===== #}
+      <div class="card shadow-sm mb-4">
+        <div class="card-header py-2 bg-light"><strong>Meses ainda abertos</strong></div>
+        <div class="card-body">
+          {% if not abertos %}
+          <p class="text-muted small mb-0">Nenhum mês aberto com ranking. Tudo em dia.</p>
+          {% else %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead><tr><th>Período</th><th>Atletas</th><th>Medalhas</th><th></th></tr></thead>
+              <tbody>
+                {% for m in abertos %}
+                <tr>
+                  <td>
+                    {{ meses[m.mes] }}/{{ m.ano }}
+                    {% if m.corrente %}<span class="badge bg-info text-dark">mês corrente</span>{% endif %}
+                  </td>
+                  <td>{{ m.total_atletas }}</td>
+                  <td>{{ m.total_medalhas }}</td>
+                  <td class="text-end">
+                    <form method="POST" action="{{ url_for('admin.fechamento_fechar') }}"
+                          onsubmit="return confirm('Fechar {{ meses[m.mes] }}/{{ m.ano }}? A lista de medalhistas e o patrocinador deste mês param de mudar.');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="ano" value="{{ m.ano }}">
+                      <input type="hidden" name="mes" value="{{ m.mes }}">
+                      <button type="submit" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-lock me-1"></i>Fechar agora
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {# ===== Meses fechados ===== #}
+      <div class="card shadow-sm mb-4">
+        <div class="card-header py-2 bg-success-subtle"><strong>Meses fechados</strong></div>
+        <div class="card-body">
+          {% if not fechados %}
+          <p class="text-muted small mb-0">Nenhum mês fechado ainda.</p>
+          {% else %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr><th>Período</th><th>Patrocinador</th><th>Atletas</th><th>Medalhas</th>
+                    <th>km</th><th>Fechado em</th><th></th></tr>
+              </thead>
+              <tbody>
+                {% for f in fechados %}
+                <tr>
+                  <td>{{ meses[f.mes] }}/{{ f.ano }}</td>
+                  <td class="small">{{ f.patrocinador or '—' }}</td>
+                  <td>{{ f.total_atletas }}</td>
+                  <td>{{ f.total_medalhas }}</td>
+                  <td>{{ '%.1f'|format(f.km_total or 0) }}</td>
+                  <td class="small text-muted">
+                    {{ f.fechado_em }}
+                    {% if f.automatico %}<span class="badge bg-secondary">automático</span>{% endif %}
+                  </td>
+                  <td class="text-end">
+                    {% if current_user.is_supremo %}
+                    <form method="POST" action="{{ url_for('admin.fechamento_reabrir') }}"
+                          onsubmit="return confirm('Reabrir {{ meses[f.mes] }}/{{ f.ano }}? A foto oficial deste mês volta a poder mudar.');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="ano" value="{{ f.ano }}">
+                      <input type="hidden" name="mes" value="{{ f.mes }}">
+                      <button type="submit" class="btn btn-sm btn-outline-warning">
+                        <i class="fas fa-lock-open me-1"></i>Reabrir
+                      </button>
+                    </form>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {# ===== Backups automáticos ===== #}
+      <h4 class="mb-1 mt-5"><i class="fas fa-hard-drive me-2"></i>Backups automáticos</h4>
+      <p class="text-muted small">
+        A aplicação faz sozinha, sem depender de ninguém lembrar:
+        <strong>configuração</strong> (o banco — atletas, km, patrocinadores, avisos)
+        nos dias {{ backups.dias_config|join(', ') }} de cada mês, guardando as
+        {{ backups.max_config }} mais recentes; e <strong>código</strong> (a aplicação inteira)
+        uma vez por mês, guardando os {{ backups.max_codigo }} mais recentes.
+        Tudo em <code>{{ backups.pasta }}</code>, fora da pasta do site.
+      </p>
+
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="card shadow-sm h-100">
+            <div class="card-header py-2 d-flex justify-content-between align-items-center">
+              <strong>Configuração (banco)</strong>
+              {% if current_user.is_supremo %}
+              <form method="POST" action="{{ url_for('admin.backup_automatico_rodar') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="qual" value="config">
+                <button class="btn btn-sm btn-outline-primary"><i class="fas fa-play me-1"></i>Rodar agora</button>
+              </form>
+              {% endif %}
+            </div>
+            <div class="card-body">
+              <p class="small text-muted">Último: {{ backups.ultima_config_em or 'ainda não rodou' }}</p>
+              {% if backups.config %}
+              <ul class="list-unstyled small mb-0">
+                {% for b in backups.config %}
+                <li><i class="fas fa-file-shield text-success me-1"></i>{{ b.nome }}
+                    <span class="text-muted">({{ b.tamanho_mb }} MB)</span></li>
+                {% endfor %}
+              </ul>
+              {% else %}
+              <p class="small text-muted mb-0">Nenhuma cópia gerada ainda.</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card shadow-sm h-100">
+            <div class="card-header py-2 d-flex justify-content-between align-items-center">
+              <strong>Código (aplicação)</strong>
+              {% if current_user.is_supremo %}
+              <form method="POST" action="{{ url_for('admin.backup_automatico_rodar') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="qual" value="codigo">
+                <button class="btn btn-sm btn-outline-primary"><i class="fas fa-play me-1"></i>Rodar agora</button>
+              </form>
+              {% endif %}
+            </div>
+            <div class="card-body">
+              <p class="small text-muted">Último: {{ backups.ultimo_codigo_em or 'ainda não rodou' }}</p>
+              {% if backups.codigo %}
+              <ul class="list-unstyled small mb-0">
+                {% for b in backups.codigo %}
+                <li><i class="fas fa-file-zipper text-primary me-1"></i>{{ b.nome }}
+                    <span class="text-muted">({{ b.tamanho_mb }} MB)</span></li>
+                {% endfor %}
+              </ul>
+              {% else %}
+              <p class="small text-muted mb-0">Nenhuma cópia gerada ainda.</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

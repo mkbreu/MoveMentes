@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block title %}Agenda telefônica — MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row"><div class="col-lg-10 mx-auto">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+      <h4 class="mb-0">
+        <i class="fas fa-address-book me-2"></i>Agenda telefônica — {{ cidade }}
+      </h4>
+      <div class="d-flex gap-2 flex-wrap">
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="acao" value="copia">
+          <button class="btn btn-outline-success btn-sm" type="submit"
+                  title="Guarda a agenda como está agora, para poder voltar">
+            <i class="fas fa-shield-halved me-1"></i>Guardar cópia
+          </button>
+        </form>
+        <form method="post"
+              onsubmit="return confirm('Vou reler as conversas e PREENCHER quem está sem número. Quem já tem número não será alterado. Continuar?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="acao" value="atualizar">
+          <button class="btn btn-primary btn-sm" type="submit">
+            <i class="fas fa-rotate me-1"></i>Atualizar números
+          </button>
+        </form>
+        <a class="btn btn-outline-secondary btn-sm"
+           href="{{ url_for('admin.exportar_telefones') }}">
+          <i class="fas fa-file-arrow-down me-1"></i>Baixar (.csv)
+        </a>
+      </div>
+    </div>
+
+    <p class="text-muted small mb-3">
+      <strong>{{ com_telefone }}</strong> de <strong>{{ linhas|length }}</strong> com telefone.
+      <em>Atualizar números</em> lê quem postou os <strong>5 links mais recentes</strong>
+      de cada atleta e <strong>só preenche quem está sem número</strong> — o que já
+      está preenchido ele não troca, para não desfazer o que você conferiu na mão.
+      Para corrigir, edite a linha e salve: escreva com DDD, <strong>sem o +55</strong>.
+    </p>
+
+    {# ===== MEDALHISTAS QUE NAO VAO RECEBER O AVISO (P-25) =====
+       Aparece nesta tela porque e aqui que se conserta telefone. Em 01/08
+       sairam 10 avisos de 12 medalhistas e ninguem soube dos dois que
+       faltaram. Mostra o NOME, nao so a contagem: contagem manda procurar,
+       nome resolve na hora. #}
+    {% if medalha_sem_fone %}
+    <div class="alert alert-warning py-2 px-3 mb-3">
+      <div class="fw-bold mb-1">
+        <i class="fas fa-medal me-1"></i>
+        {{ medalha_sem_fone|length }}
+        medalhista{{ 's' if medalha_sem_fone|length != 1 else '' }}
+        de {{ '%02d/%04d'|format(medalha_mes, medalha_ano) }}
+        sem telefone
+      </div>
+      <div class="small mb-2">
+        Sem número, o aviso da medalha <strong>não chega</strong> nessas pessoas —
+        e o envio não acusa falta, porque ele manda tudo que dá.
+      </div>
+      <div class="small">
+        {% for p in medalha_sem_fone %}
+          <span class="badge bg-warning text-dark me-1 mb-1">{{ p.nome }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% elif medalha_mes %}
+    <p class="small text-success mb-3">
+      <i class="fas fa-check me-1"></i>
+      Todos os medalhistas de {{ '%02d/%04d'|format(medalha_mes, medalha_ano) }}
+      têm telefone — o aviso da medalha alcança todo mundo.
+    </p>
+    {% endif %}
+
+    <input type="text" id="busca" class="form-control form-control-sm mb-2"
+           placeholder="Procurar por nome ou número…" autocomplete="off">
+
+    {# UM form envolvendo a tabela inteira, e nao um por linha: <form> dentro de
+       <tr> e HTML invalido — o navegador tira o form de dentro da tabela e o
+       botao Salvar nao manda nada. Cada botao diz QUAL linha esta salvando
+       (name="chave"), e os campos levam a chave no nome. #}
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="acao" value="salvar">
+      <div class="card shadow-sm">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width:32%">Nome</th>
+                <th style="width:22%">Telefone</th>
+                <th style="width:30%">E-mail</th>
+                <th style="width:16%" class="text-end">&nbsp;</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for l in linhas %}
+              <tr class="linha" data-busca="{{ (l.nome ~ ' ' ~ (l.telefone or '')) | lower }}">
+                <td>
+                  {{ l.nome }}
+                  {% if l.tipo == 'adm' %}
+                    <span class="badge bg-secondary ms-1">adm</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <input type="text" name="telefone_{{ l.chave }}"
+                         class="form-control form-control-sm"
+                         value="{{ l.telefone or '' }}" placeholder="DD 9XXXX-XXXX">
+                  {% if l.sugestao %}
+                  <div class="small text-warning-emphasis mt-1">
+                    a conversa diz <strong>{{ l.sugestao_bonita }}</strong>
+                    <span class="text-muted">({{ l.sugestao_envios }} envios)</span>
+                    <input type="hidden" name="sugestao_{{ l.chave }}" value="{{ l.sugestao }}">
+                    <button class="btn btn-link btn-sm p-0 align-baseline"
+                            type="submit" name="usar" value="{{ l.chave }}"
+                            title="Usar o número que a conversa aponta">usar</button>
+                  </div>
+                  {% endif %}
+                  {% if l.troca %}
+                  <div class="small text-danger mt-1">
+                    o link mais novo ({{ l.troca.quando }}) veio de
+                    <strong>{{ l.troca_bonita }}</strong> — pode ter trocado de número
+                    <input type="hidden" name="troca_{{ l.chave }}" value="{{ l.troca.telefone }}">
+                    <button class="btn btn-link btn-sm p-0 align-baseline"
+                            type="submit" name="usar_troca" value="{{ l.chave }}"
+                            title="Usar o número do link mais recente">usar este</button>
+                  </div>
+                  {% endif %}
+                </td>
+                <td>
+                  <input type="email" name="email_{{ l.chave }}"
+                         class="form-control form-control-sm"
+                         value="{{ l.email or '' }}" placeholder="—">
+                </td>
+                <td class="text-end text-nowrap">
+                  <button class="btn btn-outline-primary btn-sm"
+                          type="submit" name="chave" value="{{ l.chave }}"
+                          title="Salvar telefone e e-mail">
+                    <i class="fas fa-floppy-disk"></i>
+                  </button>
+                  <button class="btn btn-outline-danger btn-sm"
+                          type="submit" name="apagar" value="{{ l.chave }}"
+                          title="Apagar o telefone desta pessoa"
+                          onclick="return confirm('Apagar o telefone de {{ l.nome }}?');">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                  {% if l.tipo == 'atleta' %}
+                  <a class="btn btn-outline-secondary btn-sm"
+                     href="https://www.strava.com/athletes/{{ l.chave }}"
+                     target="_blank" rel="noopener"
+                     title="Abrir o perfil desta pessoa no Strava">
+                    <i class="fab fa-strava"></i>
+                  </a>
+                  {% else %}
+                  <a class="btn btn-outline-secondary btn-sm disabled" tabindex="-1"
+                     title="Administrador não tem perfil no Strava"><i class="fab fa-strava"></i></a>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </form>
+
+    <p class="text-muted small mt-3">
+      Um número só pode estar em um cadastro. Se você digitar aqui um número que
+      está em outro, ele <strong>muda de dono</strong> e a tela avisa de quem saiu.
+    </p>
+
+    {% if copias %}
+    <div class="card shadow-sm mt-3">
+      <div class="card-header py-2 small">
+        <strong><i class="fas fa-clock-rotate-left me-1"></i>Cópias guardadas</strong>
+        <span class="text-muted">— voltar desfaz as alterações feitas depois dela</span>
+      </div>
+      <div class="list-group list-group-flush small">
+        {% for c in copias %}
+        <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+          <span>
+            <code>{{ c.lote }}</code> — {{ c.quantos }} telefone(s)
+            <span class="text-muted">· {{ c.por }}</span>
+          </span>
+          <form method="post"
+                onsubmit="return confirm('Voltar os telefones para como estavam em {{ c.lote }}? Guardo uma cópia do estado atual antes.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="acao" value="restaurar">
+            <input type="hidden" name="lote" value="{{ c.lote }}">
+            <button class="btn btn-outline-warning btn-sm" type="submit">Voltar para esta</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div></div>
+</div>
+
+<script>
+// Filtro na própria página: são ~100 linhas, não vale ida ao servidor.
+document.getElementById('busca').addEventListener('input', function (e) {
+  var alvo = e.target.value.toLowerCase().trim();
+  document.querySelectorAll('tr.linha').forEach(function (tr) {
+    tr.style.display = (!alvo || tr.dataset.busca.indexOf(alvo) !== -1) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

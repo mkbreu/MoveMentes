@@ -1,0 +1,70 @@
+{# Peças comuns das telas de dinheiro (24/09/2026).
+
+   POR QUE UM ARQUIVO SÓ: cada tela tinha a sua cópia de `reais`, e nenhuma
+   mostrava sinal -- saída e entrada apareciam com o mesmo aspecto, e um total
+   de R$ 700 gasto parecia R$ 700 de sobra. Agora o dinheiro se escreve num lugar
+   só: saída é NEGATIVA (−R$ 37,90, em vermelho), entrada é positiva (verde).
+
+   USO:  {% import "admin/_caixa_macros.html" as cx %}   →  {{ cx.saldo(valor) }} #}
+
+{% macro reais(v) -%}
+{%- set n = (v or 0) | float -%}
+{{ '−' if n < 0 else '' }}R$ {{ '{:,.2f}'.format(n | abs).replace(',', 'X').replace('.', ',').replace('X', '.') }}
+{%- endmacro %}
+
+{# O valor com cor e sinal: verde quando positivo, vermelho quando negativo. #}
+{% macro saldo(v, forte=True) -%}
+{%- set n = (v or 0) | float -%}
+<span style="color: {{ '#b42318' if n < 0 else '#1a7f37' }}; white-space: nowrap;{{ ' font-weight: 700;' if forte }}">{{ reais(n) }}</span>
+{%- endmacro %}
+
+{# Custo aparece SEMPRE negativo (é o que o projeto pagou). #}
+{% macro custo(v) -%}
+{%- set n = (v or 0) | float | abs -%}
+{{ saldo(-n if n else 0, forte=False) }}
+{%- endmacro %}
+
+{# A "trilha" de atalhos: para ir de uma tela de dinheiro à outra sem voltar
+   ao painel. Some na impressão. #}
+{% macro atalhos(ativo, ano=None, mes=None) %}
+{% set itens = [
+    ('livro', 'caixa.index', 'fa-book', 'Livro-caixa', {'ano': ano, 'mes': mes}),
+    ('fluxo', 'caixa.fluxo', 'fa-arrow-right-arrow-left', 'Fluxo de caixa', {}),
+    ('prestacao', 'config.prestacao', 'fa-receipt', 'Prestação de contas', {'ano': ano, 'mes': mes}),
+    ('relatorios', 'relatorios.index', 'fa-file-lines', 'Relatórios', {}),
+    ('despesas', 'relatorios.despesas', 'fa-file-invoice-dollar', 'Despesas', {}),
+    ('execucao', 'execucao.index', 'fa-clipboard-check', 'O que o projeto faz', {}),
+] %}
+<nav class="d-flex flex-wrap gap-1 mb-3 rel-nao-imprime d-print-none" aria-label="Telas de contas do projeto">
+  {% for chave, rota, icone, rotulo, args in itens %}
+  {% set parametros = {} %}
+  {% for k, v in args.items() %}{% if v %}{% set _ = parametros.update({k: v}) %}{% endif %}{% endfor %}
+  <a class="btn btn-sm {{ 'btn-success' if chave == ativo else 'btn-outline-secondary' }}"
+     href="{{ url_for(rota, **parametros) }}">
+    <i class="fas {{ icone }}"></i> {{ rotulo }}
+  </a>
+  {% endfor %}
+</nav>
+{% endmacro %}
+
+{# A faixa que responde "onde o projeto está?": o que veio de antes, o que
+   entrou, o que saiu, a diferença e o saldo final. `p` = caixa.periodo(...).
+   Diferença negativa NÃO é acusação: é a coordenação bancando o custo. #}
+{% macro faixa_saldo(p, titulo_periodo=None) %}
+{% set celulas = [
+    ('Saldo que veio de antes', p.saldo_anterior, False),
+    ('Apoio recebido', p.entradas, False),
+    ('Total investido', -p.saidas, False),
+    ('Diferença do período', p.diferenca, False),
+    ('Saldo consolidado', p.saldo_final, True),
+] %}
+<div style="display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem;">
+  {% for rotulo, valor, destaque in celulas %}
+  <div style="flex: 1 1 130px; border: {{ '2px solid #2f4a1f' if destaque else '1px solid #dde3d3' }}; border-radius: 8px; padding: .55rem .6rem; text-align: center;">
+    <div style="font-size: 1.15rem; line-height: 1.2;">{{ saldo(valor) }}</div>
+    <div style="font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: #6c757d;">{{ rotulo }}</div>
+  </div>
+  {% endfor %}
+</div>
+<div style="margin-bottom: 1rem;"></div>
+{% endmacro %}

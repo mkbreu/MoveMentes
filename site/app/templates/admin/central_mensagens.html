@@ -1,0 +1,695 @@
+{% extends "base.html" %}
+{% block title %}Mensagens — {{ cidade }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .trilha-cabeca { border-left: 5px solid; padding-left: .8rem; }
+  .t-auto  { border-color: #2C6E2F; }
+  .t-prog  { border-color: #96620A; }
+  .t-voce  { border-color: #A8291F; }
+  .msg-previa { white-space: pre-wrap; font-family: inherit; font-size: .92rem;
+                background: #f8f9fa; border: 1px solid #dee2e6; border-radius: .3rem;
+                padding: .7rem .9rem; margin: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row"><div class="col-lg-11 mx-auto">
+
+    <h4 class="mb-1"><i class="fas fa-comments me-2"></i>Mensagens — {{ cidade }}</h4>
+
+    {# SELETOR DE PERÍODO (13/08). Antes tudo saía de "hoje" e o admin clicava
+       em enviar sem saber de que mês era a mensagem. O mês escolhido vale para
+       TODAS as seções abaixo: medalhas, agradecimento, encerramento e abertura. #}
+    <form method="GET" class="row g-2 align-items-end my-3 p-2 bg-light border rounded">
+      <div class="col-auto">
+        <label class="form-label small fw-bold mb-1">Mês de referência</label>
+        <select name="mes" class="form-select form-select-sm">
+          {% for numero, nome in meses.items() %}
+          <option value="{{ numero }}" {% if numero == mes %}selected{% endif %}>{{ nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small fw-bold mb-1">Ano</label>
+        <select name="ano" class="form-select form-select-sm">
+          {% for a in anos %}
+          <option value="{{ a }}" {% if a == ano %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-primary">Ver este mês</button>
+      </div>
+      <div class="col-auto">
+        <span class="small text-muted">
+          Mostrando <strong>{{ meses.get(mes, mes) }}/{{ ano }}</strong>.
+          {% if periodo_atual %}É o mês em andamento.
+          {% else %}Mês fechado — o texto enviado fica como está.{% endif %}
+        </span>
+      </div>
+    </form>
+
+    <div class="alert alert-secondary py-2 small">
+      <strong>Esta tela cuida do CONTEÚDO: o que o sistema fala e para quem.</strong><br>
+      O horário em que sai e de qual WhatsApp está em
+      <a href="{{ url_for('admin.painel_automayk') }}" class="alert-link">Automação</a>.
+      A regra é simples: <strong>Mensagens = o que se fala. Automação = por onde e quando sai.</strong>
+    </div>
+
+    <details class="mb-3">
+      <summary class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-map me-1"></i>Mapa: qual mensagem é qual
+      </summary>
+      <div class="table-responsive mt-2">
+        <table class="table table-sm align-middle small">
+          <thead>
+            <tr><th>Mensagem</th><th>Vai para</th><th>Quando</th><th>Sai sozinha?</th><th>Onde se mexe</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Ranking</strong></td><td>Grupo</td><td>Nos horários da cidade</td>
+                <td><span class="badge bg-success">sim</span></td>
+                <td><a href="{{ url_for('admin.postagem') }}">Automação › Horários</a></td></tr>
+            <tr><td><strong>Logos dos patrocinadores</strong></td><td>Grupo</td><td>Junto com o ranking</td>
+                <td><span class="badge bg-success">sim</span></td>
+                <td><a href="{{ url_for('ranking.patrocinadores') }}">Patrocinadores</a></td></tr>
+            <tr><td><strong>Parabéns de meta</strong></td><td>Grupo</td><td>Junto com o ranking</td>
+                <td><span class="badge bg-success">sim</span></td>
+                <td><a href="{{ url_for('admin.postagem') }}">Automação › Horários</a></td></tr>
+            <tr class="table-light"><td><strong>Encerramento do mês</strong></td><td>Grupo</td><td>Dia 1 ao 5</td>
+                <td><span class="badge bg-success">sim</span></td><td>Aqui, aba <em>Acontece sozinho</em></td></tr>
+            <tr class="table-light"><td><strong>Agradecimento ao patrocinador</strong></td><td>Privado dele</td><td>Dia 1 ao 5</td>
+                <td><span class="badge bg-success">sim</span></td><td>Aqui, aba <em>Acontece sozinho</em></td></tr>
+            <tr class="table-light"><td><strong>Abertura do mês</strong></td><td>Grupo</td><td>Dia 1 ao 5</td>
+                <td><span class="badge bg-success">sim</span></td><td>Aqui, aba <em>Acontece sozinho</em></td></tr>
+            <tr class="table-light"><td><strong>Anúncio de patrocinador</strong></td><td>Grupo</td><td>Assim que você cadastrar</td>
+                <td><span class="badge bg-success">sim</span></td>
+                <td><a href="{{ url_for('ranking.patrocinadores') }}">Patrocinadores</a></td></tr>
+            <tr class="table-light"><td><strong>Medalha para retirar</strong></td><td>Privado do atleta</td><td>Dia 2 ao 10</td>
+                <td><span class="badge bg-success">sim</span></td><td>Aqui, aba <em>Acontece sozinho</em></td></tr>
+            <tr><td><strong>Aviso / comunicado (AV-)</strong></td><td>Você escolhe</td><td>Você agenda</td>
+                <td><span class="badge bg-warning text-dark">só depois de criado</span></td>
+                <td>Aqui, aba <em>Você programa</em></td></tr>
+            <tr><td><strong>Promoção de patrocinador</strong></td><td>Grupo</td><td>1x por dia, por último</td>
+                <td><span class="badge bg-danger">só se você autorizar</span></td>
+                <td>Aqui, aba <em>Esperando você</em></td></tr>
+            <tr><td><strong>Anti-cheat</strong></td><td>Privado do atleta</td><td>Quando o sistema estranha algo</td>
+                <td><span class="badge bg-danger">nunca sozinha</span></td>
+                <td>Aqui, aba <em>Esperando você</em></td></tr>
+            <tr><td><strong>Alerta de falha</strong></td><td>Privado do admin da cidade</td><td>Quando algo quebra</td>
+                <td><span class="badge bg-success">sim</span></td>
+                <td><a href="{{ url_for('admin.painel_automayk') }}">Automação</a></td></tr>
+          </tbody>
+        </table>
+        <p class="text-muted small mb-0">
+          Nada com <span class="badge bg-danger">nunca sozinha</span> sai sem você apertar —
+          nem depois de três avisos no mês. E o quilômetro do atleta nunca é removido do
+          ranking por causa de anti-cheat.
+        </p>
+      </div>
+    </details>
+
+    <p class="text-muted small mb-3">
+      Três trilhas. A pergunta que separa é:
+      <strong>“se eu não fizer nada, isso sai?”</strong>
+    </p>
+
+    {% if esperando %}
+    <div class="alert alert-danger d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <strong><i class="fas fa-hand me-1"></i>{{ esperando|length }} coisa(s) esperando sua decisão.</strong>
+        Nada disso sai sozinho.
+      </div>
+      <a href="#esperando" class="btn btn-sm btn-danger">Ver agora</a>
+    </div>
+    {% endif %}
+
+    {% if resumo_fila.pendentes %}
+    <div class="alert alert-info py-2 small">
+      <i class="fas fa-paper-plane me-1"></i>
+      <strong>{{ resumo_fila.pendentes }}</strong> mensagem(ns) na fila, esperando a automação ligar.
+    </div>
+    {% endif %}
+
+    {% if resumo_fila.falhadas %}
+    <div class="alert alert-danger d-flex justify-content-between align-items-center py-2 small">
+      <div>
+        <strong><i class="fas fa-circle-exclamation me-1"></i>{{ resumo_fila.falhadas }} mensagem(ns) desistiram e não vão sair sozinhas.</strong>
+        Veja o motivo e reenvie na aba “Na fila”.
+      </div>
+      <a href="#aba-fila" class="btn btn-sm btn-danger"
+         onclick="document.getElementById('btn-aba-fila').click(); return false;">Ver agora</a>
+    </div>
+    {% endif %}
+
+    <ul class="nav nav-tabs mb-3" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#aba-auto" type="button">
+        <i class="fas fa-repeat me-1 text-success"></i>Acontece sozinho</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#aba-prog" type="button">
+        <i class="fas fa-calendar-day me-1 text-warning"></i>Você programa
+        {% if avisos %}<span class="badge bg-secondary">{{ avisos|length }}</span>{% endif %}</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#aba-voce" type="button">
+        <i class="fas fa-hand me-1 text-danger"></i>Esperando você
+        {% if esperando %}<span class="badge bg-danger">{{ esperando|length }}</span>{% endif %}</button></li>
+      <li class="nav-item"><button class="nav-link" id="btn-aba-fila" data-bs-toggle="tab" data-bs-target="#aba-fila" type="button">
+        <i class="fas fa-list-check me-1"></i>Na fila
+        {% if resumo_fila.pendentes %}<span class="badge bg-info text-dark">{{ resumo_fila.pendentes }}</span>{% endif %}
+        {% if resumo_fila.falhadas %}<span class="badge bg-danger">{{ resumo_fila.falhadas }}</span>{% endif %}</button></li>
+    </ul>
+
+    <div class="tab-content">
+
+      {# ================= TRILHA 1 ================= #}
+      <div class="tab-pane fade show active" id="aba-auto">
+        <div class="trilha-cabeca t-auto mb-3">
+          <p class="mb-1"><strong>Sai sozinho, todo mês, sem você tocar.</strong></p>
+          <p class="text-muted small mb-0">
+            Você pode reescrever o texto e restaurar o padrão quando quiser. O botão
+            <em>enviar agora</em> serve para adiantar — se a máquina estiver desligada,
+            fica na fila e sai quando ela ligar.
+          </p>
+        </div>
+
+        <h6 class="text-muted mt-3">No grupo, nos horários da cidade</h6>
+        <div class="table-responsive mb-4">
+          <table class="table table-sm align-middle">
+            <thead><tr><th>Horário</th><th>O que sai</th></tr></thead>
+            <tbody>
+              {% for i in agenda %}
+              <tr class="{% if not i.ativo %}text-muted{% endif %}">
+                <td><strong>{{ i.horario }}</strong>{% if not i.ativo %} <span class="badge bg-secondary">desligado</span>{% endif %}</td>
+                <td class="small">
+                  {% if i.envia_ranking %}<span class="badge bg-light text-dark border">Ranking</span>{% endif %}
+                  {% if i.envia_patrocinadores %}<span class="badge bg-light text-dark border">Logos</span>{% endif %}
+                  {% if i.envia_parabens %}<span class="badge bg-light text-dark border">Parabéns</span>{% endif %}
+                  {% if i.envia_avisos %}<span class="badge bg-light text-dark border">Avisos</span>{% endif %}
+                  {% if i.envia_promocoes %}<span class="badge bg-warning text-dark">Promoções</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="small text-muted">
+          Mudar horário ou quem publica é em
+          <a href="{{ url_for('admin.postagem') }}">Publicação no grupo</a>.
+        </p>
+
+        <h6 class="text-muted mt-4">ENVIO AUTOMÁTICO NA VIRADA DO MÊS</h6>
+        <p class="small text-muted">
+          Estas <strong>saem sozinhas</strong> na janela indicada em cada uma — você não
+          precisa apertar nada. O botão só serve para adiantar.
+        </p>
+        {% if not ciclo %}
+        <div class="alert alert-secondary py-2 small">
+          Nada para a virada agora. Cadastre o patrocinador em
+          <a href="{{ url_for('ranking.patrocinadores') }}">Patrocinadores</a>.
+        </div>
+        {% endif %}
+        {% set medalhas = ciclo|selectattr('tipo', 'equalto', 'medalha')|list %}
+        {% for m in ciclo if m.tipo != 'medalha' %}
+        {% set st = m.situacao %}
+        {% set saiu = st and st.situacao == 'enviada' %}
+        {% set na_fila = st and st.situacao == 'pendente' %}
+        <div class="card shadow-sm mb-3 {% if saiu %}border-success{% elif na_fila %}border-info{% endif %}">
+          <div class="card-header py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <strong>
+              {% if saiu %}<i class="fas fa-circle-check text-success me-1"></i>
+              {% elif na_fila %}<i class="fas fa-hourglass-half text-info me-1"></i>
+              {% else %}<i class="far fa-circle text-muted me-1"></i>{% endif %}
+              {{ m.titulo }}
+            </strong>
+            <span>
+              <span class="badge bg-secondary">{{ m.destino }}</span>
+              <span class="badge bg-light text-dark border">{{ m.periodo }}</span>
+              {% if m.vezes %}
+                <span class="badge {{ 'bg-danger' if m.vezes >= 2 else 'bg-warning text-dark' }}"
+                      title="Quantas vezes esta mensagem já saiu">já saiu {{ m.vezes }}x</span>
+              {% endif %}
+              {% if saiu %}
+                <span class="badge bg-success">enviada {{ st.quando|string|truncate(16, True, '') }}</span>
+              {% elif na_fila %}
+                <span class="badge bg-info text-dark">na fila desde {{ st.quando|string|truncate(16, True, '') }}</span>
+              {% elif st and st.situacao == 'falhou' %}
+                <span class="badge bg-danger">falhou {{ st.tentativas }}x</span>
+              {% elif st and st.situacao == 'cancelada' %}
+                <span class="badge bg-secondary">cancelada</span>
+              {% elif m.ja_feito %}
+                {# P-51: antes esta linha nem existia — o item sumia da tela
+                   assim que era feito, e a pergunta "eu já anunciei?" ficava
+                   sem resposta. #}
+                <span class="badge bg-dark">{{ m.motivo_feito or 'já feito' }}</span>
+              {% elif m.sai_hoje_sozinha %}
+                <span class="badge bg-success">sai sozinha hoje</span>
+              {% elif m.janela %}
+                <span class="badge bg-light text-dark border"
+                      title="Fora da janela em que esta mensagem sai sozinha">
+                  sai sozinha do dia {{ m.janela[0] }} ao {{ m.janela[1] }}
+                </span>
+              {% endif %}
+            </span>
+          </div>
+          <div class="card-body">
+            {% if not m.telefone and m.destino != 'grupo' %}
+            <div class="alert alert-warning py-2 small mb-2">
+              <i class="fas fa-triangle-exclamation me-1"></i>
+              <strong>Sem telefone cadastrado</strong> — esta mensagem não tem para onde ir.
+              {% if m.destino == 'privado do patrocinador' %}
+              Preencha em <a href="{{ url_for('ranking.patrocinadores') }}">Patrocinadores</a>.
+              {% else %}
+              Preencha em <a href="{{ url_for('admin.telefones_atletas') }}">Telefones dos atletas</a>.
+              {% endif %}
+            </div>
+            {% elif saiu %}
+            <div class="alert alert-success py-2 small mb-2">
+              <i class="fas fa-check me-1"></i>
+              Já foi entregue. Não sai de novo sozinha.
+              {% if st.detalhe %}<span class="text-muted">({{ st.detalhe }})</span>{% endif %}
+            </div>
+            {% elif na_fila %}
+            <div class="alert alert-info py-2 small mb-2">
+              <i class="fas fa-hourglass-half me-1"></i>
+              Está na fila. Sai na próxima rodada da automação — no máximo 15 minutos
+              com a máquina ligada. Se ela estiver desligada, sai quando ligar.
+            </div>
+            {% endif %}
+            <pre class="msg-previa mb-2">{{ m.texto }}</pre>
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+              {% if saiu or na_fila %}
+              <button class="btn btn-sm btn-secondary" disabled>
+                <i class="fas fa-paper-plane me-1"></i>{{ 'Já enviada' if saiu else 'Já está na fila' }}
+              </button>
+                {% if saiu %}
+                <form method="POST" action="{{ url_for('admin.central_enviar') }}"
+                      onsubmit="return confirm('Esta mensagem já saiu {{ m.vezes }}x. Mandar DE NOVO para quem já recebeu?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="chave_item" value="{{ m.chave }}">
+                  <input type="hidden" name="forcar" value="sim">
+                  <button class="btn btn-sm btn-outline-danger">
+                    <i class="fas fa-rotate-right me-1"></i>Mandar de novo
+                  </button>
+                </form>
+                {% endif %}
+              {% elif m.ja_feito %}
+              <span class="badge bg-dark align-self-center">{{ m.motivo_feito or 'já feito' }}</span>
+              <form method="POST" action="{{ url_for('admin.central_enviar') }}"
+                    onsubmit="return confirm('Esta mensagem já saiu {{ m.vezes }}x. Mandar DE NOVO para o grupo?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="chave_item" value="{{ m.chave }}">
+                <input type="hidden" name="forcar" value="sim">
+                <button class="btn btn-sm btn-outline-danger">
+                  <i class="fas fa-rotate-right me-1"></i>Enviar novamente
+                </button>
+              </form>
+              {% elif m.telefone or m.destino == 'grupo' %}
+              <form method="POST" action="{{ url_for('admin.central_enviar') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="chave_item" value="{{ m.chave }}">
+                <button class="btn btn-sm btn-success"><i class="fas fa-paper-plane me-1"></i>Adiantar o envio</button>
+              </form>
+              {% endif %}
+              <button type="button" class="btn btn-sm btn-outline-primary copiar-msg">
+                <i class="fas fa-copy me-1"></i>Copiar
+              </button>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+
+        {# A SEÇÃO APARECE SEMPRE, mesmo com a lista vazia (13/08). Escondê-la
+           quando não falta ninguém dá a impressão de que a funcionalidade
+           sumiu — foi o que aconteceu assim que todo mundo de julho já tinha
+           sido avisado. Seção que some não informa nada; seção que diz "não
+           falta ninguém" informa. #}
+        <h6 class="text-muted mt-4">
+          AVISO DE MEDALHAS NO PRIVADO
+          <span class="badge {% if medalhistas_faltantes %}bg-secondary{% else %}bg-success{% endif %}">
+            {{ medalhistas_faltantes|length }}
+          </span>
+        </h6>
+        <p class="small text-muted">
+          Atalho: só quem <strong>ainda falta avisar</strong> de
+          <strong>{{ meses.get(mes, mes) }}/{{ ano }}</strong>. Quem já retirou ou
+          já foi avisado fica no painel de medalhistas, que tem os controles todos.
+          <strong>Esta mensagem nunca sai sozinha</strong> — é a única que manda
+          a pessoa sair de casa, então quem decide é você.
+        </p>
+        <p class="small mb-2">
+          <a href="{{ url_for('admin.medalhistas', ano=ano, mes=mes) }}" class="btn btn-sm btn-dark">
+            <i class="fas fa-medal me-1"></i>Abrir o painel de medalhistas
+          </a>
+          <span class="text-muted ms-2">
+            mês a mês, com quem já retirou, quantas vezes cada um foi avisado e
+            as medalhas acumuladas.
+          </span>
+        </p>
+        {% set sem_fone = medalhistas_faltantes|rejectattr('telefone')|list %}
+        {% if sem_fone %}
+        <div class="alert alert-warning py-2 small">
+          <i class="fas fa-triangle-exclamation me-1"></i>
+          <strong>{{ sem_fone|length }}</strong> medalhista(s) sem telefone —
+          essas pessoas não vão receber o recado.
+          <a href="{{ url_for('admin.telefones_atletas') }}" class="alert-link">Completar telefones</a>.
+        </div>
+        {% endif %}
+        {% if medalhistas_faltantes %}
+        <div class="table-responsive mb-4">
+          <table class="table table-sm align-middle">
+            <thead><tr><th>Quem</th><th>Telefone</th><th>Já avisado</th><th></th></tr></thead>
+            <tbody>
+              {% for m in medalhistas_faltantes %}
+              <tr class="{% if not m.telefone %}table-warning{% endif %}">
+                <td class="small">
+                  {{ m.nome }}
+                  {% if m.acumuladas > 1 %}
+                  <span class="badge bg-dark" title="medalhas acumuladas sem retirar">{{ m.acumuladas }} acumuladas</span>
+                  {% endif %}
+                </td>
+                <td class="small text-muted">{{ m.telefone|telefone if m.telefone else '—' }}</td>
+                <td class="small">
+                  {% if m.envios %}
+                  <span class="badge bg-secondary">{{ m.envios }}x</span>
+                  {% else %}
+                  <span class="text-muted">nunca</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if m.telefone %}
+                  <form method="POST" action="{{ url_for('admin.medalhistas', ano=ano, mes=mes) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="acao" value="enviar">
+                    <input type="hidden" name="chave" value="{{ m.chave }}">
+                    <button class="btn btn-sm btn-outline-success">Enviar aviso</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="alert alert-success py-2 small mb-3">
+          <i class="fas fa-circle-check me-1"></i>
+          <strong>Não falta avisar ninguém de {{ meses.get(mes, mes) }}/{{ ano }}.</strong>
+        </div>
+        {% endif %}
+
+        {# JÁ AVISADOS, RECOLHIDOS. Sem eles a contagem de envios sumia da tela
+           exatamente quando ela importa: quando todo mundo já recebeu e a
+           dúvida vira "mandei quantas vezes para quem?". #}
+        {% if medalhistas_avisados %}
+        <details class="mb-4">
+          <summary class="btn btn-sm btn-outline-secondary">
+            Já avisados ou já retirados ({{ medalhistas_avisados|length }}) —
+            ver quantas vezes cada um recebeu
+          </summary>
+          <div class="table-responsive mt-2">
+            <table class="table table-sm align-middle">
+              <thead><tr><th>Quem</th><th>Telefone</th><th>Já avisado</th><th>Situação</th><th></th></tr></thead>
+              <tbody>
+                {% for m in medalhistas_avisados %}
+                <tr class="{% if m.retirada %}table-light text-muted{% endif %}">
+                  <td class="small">{{ m.nome }}</td>
+                  <td class="small text-muted">{{ m.telefone|telefone if m.telefone else '—' }}</td>
+                  <td class="small">
+                    {% if m.envios %}
+                    <span class="badge {% if m.envios > 1 %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                      {{ m.envios }}x</span>
+                    {% else %}<span class="text-muted">nunca</span>{% endif %}
+                  </td>
+                  <td class="small">
+                    {% if m.retirada %}<span class="badge bg-dark">já retirou</span>
+                    {% elif m.aviso == 'enviada' %}<span class="badge bg-success">avisado</span>
+                    {% elif m.aviso == 'pendente' %}<span class="badge bg-info text-dark">na fila</span>
+                    {% elif m.aviso == 'falhou' %}<span class="badge bg-danger">falhou</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if m.telefone and not m.retirada %}
+                    <form method="POST" action="{{ url_for('admin.medalhistas', ano=ano, mes=mes) }}"
+                          onsubmit="return confirm('Mandar o aviso DE NOVO para {{ m.nome }}? Ele já recebeu {{ m.envios }}x.');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="acao" value="enviar">
+                      <input type="hidden" name="chave" value="{{ m.chave }}">
+                      <button class="btn btn-sm btn-outline-danger">
+                        <i class="fas fa-rotate-right me-1"></i>Enviar novamente
+                      </button>
+                    </form>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+        {% endif %}
+
+        <h6 class="text-muted mt-4">MODELOS DE MENSAGEM EDITÁVEIS</h6>
+        <div class="accordion" id="acc-textos">
+          {% for chave, info in textos_padrao.items() %}
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button"
+                      data-bs-toggle="collapse" data-bs-target="#txt-{{ loop.index }}">
+                {{ info.titulo }}
+                {% if textos_editados.get(chave) %}
+                <span class="badge bg-info text-dark ms-2">editado por você</span>
+                {% endif %}
+              </button>
+            </h2>
+            <div id="txt-{{ loop.index }}" class="accordion-collapse collapse" data-bs-parent="#acc-textos">
+              <div class="accordion-body">
+                <p class="small text-muted mb-2">
+                  <strong>{{ info.onde }}</strong> · {{ info.quando }}<br>
+                  Etiquetas que viram dados na hora do envio:
+                  <code>{{ info.etiquetas }}</code>
+                </p>
+                {# O BLOQUEIO APARECE ONDE O BOTÃO ESTÁ (14/08/2026).
+                   Antes, clicar em "Salvar e enviar" com o local de retirada
+                   em branco só produzia um aviso azul dizendo que "não havia
+                   mensagem para enviar agora" — e o dono ficava sem saber que
+                   faltava um dado, nem qual. #}
+                {% if chave == 'medalhas_no_grupo' and bloqueio_medalhas %}
+                <div class="alert alert-warning py-2 small">
+                  <i class="fas fa-triangle-exclamation me-1"></i>
+                  <strong>Esta mensagem ainda não pode sair.</strong>
+                  {{ bloqueio_medalhas.texto }}
+                  <a href="{{ bloqueio_medalhas.rota }}" class="btn btn-sm btn-warning mt-2 d-block d-sm-inline">
+                    {{ bloqueio_medalhas.botao }}
+                  </a>
+                </div>
+                {% endif %}
+                <form method="POST" action="{{ url_for('admin.central_texto') }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="chave" value="{{ chave }}">
+                  {# O MÊS ESCOLHIDO NO ALTO DA TELA VAI JUNTO. Sem isto o envio
+                     usava sempre o mês anterior a HOJE, ignorando o seletor. #}
+                  <input type="hidden" name="ano" value="{{ ano }}">
+                  <input type="hidden" name="mes" value="{{ mes }}">
+                  <textarea name="corpo" class="form-control font-monospace" rows="12"
+                            style="font-size:.85rem;">{{ textos_corpo.get(chave, info.corpo) }}</textarea>
+                  <div class="d-flex gap-2 flex-wrap mt-2">
+                    <button name="acao" value="salvar" class="btn btn-sm btn-primary">
+                      <i class="fas fa-save me-1"></i>Salvar
+                    </button>
+                    <button name="acao" value="salvar_enviar" class="btn btn-sm btn-success">
+                      <i class="fas fa-paper-plane me-1"></i>Salvar e enviar agora
+                    </button>
+                    <button name="acao" value="restaurar" class="btn btn-sm btn-outline-secondary"
+                            onclick="return confirm('Voltar ao texto padrão do sistema?');">
+                      <i class="fas fa-rotate-left me-1"></i>Restaurar o padrão
+                    </button>
+                  </div>
+                  <div class="form-text">
+                    Salvar sem enviar deixa o texto valendo para o próximo horário.
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      {# ================= TRILHA 2 ================= #}
+      <div class="tab-pane fade" id="aba-prog">
+        <div class="trilha-cabeca t-prog mb-3">
+          <p class="mb-1"><strong>Só existe se você criar.</strong></p>
+          <p class="text-muted small mb-0">
+            Evento, mudança de regra, recado — e a promoção do patrocinador.
+            Cada um tem começo, fim e frequência.
+          </p>
+        </div>
+        <a href="{{ url_for('avisos.index') }}" class="btn btn-warning btn-sm mb-3">
+          <i class="fas fa-plus me-1"></i>Criar ou editar avisos
+        </a>
+        {% if not avisos %}
+        <div class="alert alert-secondary py-2 small">Nenhum aviso cadastrado.</div>
+        {% else %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr><th>Código</th><th>Título</th><th>Público</th><th>Quando</th><th>Situação</th></tr></thead>
+            <tbody>
+              {% for a in avisos %}
+              <tr>
+                <td><code>{{ a.codigo }}</code></td>
+                <td>{{ a.titulo }}</td>
+                <td class="small">{{ a.publico }}</td>
+                <td class="small">{{ a.frequencia }} · {{ a.horario }}</td>
+                <td>
+                  {% if not a.ativo %}<span class="badge bg-secondary">desligado</span>
+                  {% elif a.vencido %}<span class="badge bg-warning text-dark">vai sair</span>
+                  {% else %}<span class="badge bg-success">agendado</span>{% endif %}
+                  {% if a.enviados %}<span class="text-muted small">{{ a.enviados }} envio(s)</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+
+      {# ================= TRILHA 3 ================= #}
+      <div class="tab-pane fade" id="aba-voce">
+        <div class="trilha-cabeca t-voce mb-3" id="esperando">
+          <p class="mb-1"><strong>Assunto sensível. Nunca sai sozinho.</strong></p>
+          <p class="text-muted small mb-0">
+            O sistema avisa, você confere e você decide. Nada aqui é disparado
+            automaticamente — nem depois de três avisos no mês.
+          </p>
+        </div>
+        {% if not esperando %}
+        <div class="alert alert-success py-2 small">
+          <i class="fas fa-check me-1"></i>Nada esperando você agora.
+        </div>
+        {% else %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr><th>O quê</th><th>Detalhe</th><th>Quando</th><th></th></tr></thead>
+            <tbody>
+              {% for e in esperando %}
+              <tr>
+                <td><strong>{{ e.titulo }}</strong></td>
+                <td class="small text-muted">{{ e.detalhe }}</td>
+                <td class="small text-muted">{{ e.quando.strftime('%d/%m %H:%M') if e.quando else '—' }}</td>
+                <td>
+                  <a href="{{ e.link }}" class="btn btn-sm btn-outline-danger">Abrir e decidir</a>
+                  {% if not e.tem_telefone %}
+                  <span class="badge bg-warning text-dark" title="Sem telefone, a mensagem não pode ser enviada">sem telefone</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+
+      {# ================= FILA ================= #}
+      <div class="tab-pane fade" id="aba-fila">
+
+        {# AS QUE DESISTIRAM VÊM PRIMEIRO. São as únicas que precisam de você:
+           a fila normal anda sozinha. Antes elas não apareciam em lugar nenhum
+           e o alerta mandava procurá-las aqui. #}
+        {% if fila_falhadas %}
+        <div class="alert alert-danger py-2">
+          <strong><i class="fas fa-circle-exclamation me-1"></i>{{ fila_falhadas|length }} mensagem(ns) desistiram e não vão sair sozinhas.</strong>
+          <div class="small mt-1">
+            “Enviar de novo” recoloca na fila e tenta na hora. Se o motivo abaixo
+            já foi resolvido, é só isso que falta.
+          </div>
+        </div>
+        <div class="table-responsive mb-4">
+          <table class="table table-sm align-middle">
+            <thead><tr><th>Tipo</th><th>Para</th><th>Mensagem</th><th>Por que parou</th><th></th></tr></thead>
+            <tbody>
+              {% for f in fila_falhadas %}
+              <tr class="table-warning">
+                <td><span class="badge bg-light text-dark border">{{ f.tipo }}</span></td>
+                <td class="small">{{ f.destino }}</td>
+                <td class="small text-muted">{{ f.texto[:70] }}{% if f.texto|length > 70 %}…{% endif %}
+                  {% if f.tem_imagem %}<i class="fas fa-image ms-1 text-secondary" title="tem imagem"></i>{% endif %}</td>
+                <td class="small">{{ f.detalhe or 'sem detalhe registrado' }}</td>
+                <td class="text-nowrap">
+                  <form method="POST" action="{{ url_for('admin.central_fila_retomar', mensagem_id=f.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-primary">Enviar de novo</button>
+                  </form>
+                  <form method="POST" action="{{ url_for('admin.central_fila_cancelar', mensagem_id=f.id) }}" class="d-inline"
+                        onsubmit="return confirm('Dispensar esta mensagem? Ela não vai sair.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline-secondary">Dispensar</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+
+        <p class="text-muted small">
+          O que já foi despachado e está esperando a automação ligar.
+          Cancelar aqui impede que saia.
+        </p>
+        {% if not fila %}
+        <div class="alert alert-secondary py-2 small">Fila vazia.</div>
+        {% else %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr><th>Tipo</th><th>Para</th><th>Mensagem</th><th>Tentativas</th><th></th></tr></thead>
+            <tbody>
+              {% for f in fila %}
+              <tr>
+                <td><span class="badge bg-light text-dark border">{{ f.tipo }}</span></td>
+                <td class="small">{{ f.destino }}</td>
+                <td class="small text-muted">{{ f.texto[:90] }}{% if f.texto|length > 90 %}…{% endif %}</td>
+                <td>{% if f.tentativas %}<span class="badge bg-warning text-dark">{{ f.tentativas }}</span>{% else %}—{% endif %}</td>
+                <td class="text-nowrap">
+                  {# ENVIAR AGORA, sem esperar o ciclo de 15 min (pedido do dono,
+                     14/08). Em fase de teste, esperar o ciclo para saber se um
+                     botão funcionou transforma cada tentativa em espera cega. #}
+                  <form method="POST" action="{{ url_for('admin.central_fila_enviar', mensagem_id=f.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-primary">Enviar agora</button>
+                  </form>
+                  <form method="POST" action="{{ url_for('admin.central_fila_cancelar', mensagem_id=f.id) }}" class="d-inline"
+                        onsubmit="return confirm('Cancelar esta mensagem? Ela não vai sair.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline-secondary">Cancelar</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+
+    </div>
+  </div></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.copiar-msg').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var area = b.closest('.card-body').querySelector('.msg-previa');
+    if (!area) return;
+    var texto = area.textContent || '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(function () {
+        b.innerHTML = '<i class="fas fa-check me-1"></i>Copiado';
+      });
+    }
+  });
+});
+</script>
+{% endblock %}

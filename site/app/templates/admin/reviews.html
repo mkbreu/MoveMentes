@@ -1,0 +1,576 @@
+{% extends "base.html" %}
+{% block title %}Revisões Anticheat — Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-11 mx-auto">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <h4 class="mb-0"><i class="fas fa-shield-alt me-2"></i>Revisões Anticheat</h4>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('admin.anticheat_config') }}" class="btn btn-sm btn-outline-primary">
+          <i class="fas fa-sliders-h me-1"></i>Parâmetros
+        </a>
+        <a href="{{ url_for('admin.manage_users') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="fas fa-arrow-left me-1"></i>Voltar
+        </a>
+      </div>
+    </div>
+
+    {# Resumo dos pendentes por categoria e por atleta #}
+    {% if resumo_tipos or resumo_atletas %}
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-header py-2 bg-light">
+            <strong class="small"><i class="fas fa-tags me-1"></i>Pendentes por categoria</strong>
+          </div>
+          <div class="card-body py-2">
+            {% if resumo_tipos %}
+            <div class="d-flex flex-wrap gap-2">
+              {% for tipo, total in resumo_tipos %}
+              <span class="badge bg-secondary">{{ tipo }} <span class="badge bg-light text-dark ms-1">{{ total }}</span></span>
+              {% endfor %}
+            </div>
+            {% else %}
+            <span class="text-muted small">Sem pendências.</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-header py-2 bg-light">
+            <strong class="small"><i class="fas fa-user-friends me-1"></i>Atletas com pendências</strong>
+          </div>
+          <div class="card-body py-2">
+            {% if resumo_atletas %}
+            <div class="d-flex flex-wrap gap-2">
+              {% for item in resumo_atletas %}
+              <a href="{{ url_for('admin.reviews', tab=tab, q=(item.atleta.nome_atual if item.atleta else '')) }}"
+                 class="badge bg-danger text-decoration-none">
+                {{ item.atleta.nome_atual if item.atleta else 'Atleta #' ~ item.atleta_id }}
+                <span class="badge bg-light text-dark ms-1">{{ item.total }}</span>
+              </a>
+              {% endfor %}
+            </div>
+            {% else %}
+            <span class="text-muted small">Sem pendências.</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Busca por atleta (server-side) #}
+    <form method="GET" action="{{ url_for('admin.reviews') }}" class="mb-3">
+      <input type="hidden" name="tab" value="{{ tab }}">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text"><i class="fas fa-search"></i></span>
+        <input type="text" name="q" class="form-control" placeholder="Buscar por nome do atleta..."
+               value="{{ q or '' }}">
+        <button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if q %}
+        <a href="{{ url_for('admin.reviews', tab=tab) }}" class="btn btn-outline-secondary">Limpar</a>
+        {% endif %}
+      </div>
+    </form>
+
+    {# Tabs #}
+    <ul class="nav nav-tabs mb-3">
+      <li class="nav-item">
+        <a class="nav-link {% if tab == 'pendentes' %}active{% endif %}"
+           href="{{ url_for('admin.reviews', tab='pendentes') }}">
+          <i class="fas fa-clock me-1"></i>Pendentes
+          <span class="badge bg-warning text-dark ms-1">{{ counts.pendentes }}</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if tab == 'abertas' %}active{% endif %}"
+           href="{{ url_for('admin.reviews', tab='abertas') }}">
+          <i class="fas fa-exclamation-triangle me-1"></i>Abertas
+          <span class="badge bg-secondary ms-1">{{ counts.abertas }}</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if tab == 'aprovadas' %}active{% endif %}"
+           href="{{ url_for('admin.reviews', tab='aprovadas') }}">
+          <i class="fas fa-check-circle me-1"></i>Aprovadas
+          <span class="badge bg-success ms-1">{{ counts.aprovadas }}</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if tab == 'rejeitadas' %}active{% endif %}"
+           href="{{ url_for('admin.reviews', tab='rejeitadas') }}">
+          <i class="fas fa-times-circle me-1"></i>Rejeitadas
+          <span class="badge bg-danger ms-1">{{ counts.rejeitadas }}</span>
+        </a>
+      </li>
+    </ul>
+
+    {% if flags|length == 0 %}
+    <div class="alert alert-success">
+      <i class="fas fa-check-circle me-2"></i>Nenhuma flag nesta categoria.
+    </div>
+    {% endif %}
+
+    {# APROVAR EM MASSA (09/09/2026, pedido do dono).
+       Com mais de mil flags em aberto, uma por uma nao e' trabalho que alguem
+       faca -- e tela que nao da conta do proprio volume vira tela que ninguem
+       abre. As caixas moram DENTRO dos cards e apontam para este formulario
+       pelo atributo `form=`, porque formulario dentro de formulario nao existe
+       em HTML e cada card ja tem o seu.
+       REJEITAR EM MASSA existe desde 01/10/2026 (pedido do dono): botão na
+       mesma barra, justificativa opcional, confirmação com a contagem. #}
+    {% if flags|length and tab in ('pendentes', 'abertas') %}
+    <form method="POST" id="formMassa"
+          action="{{ url_for('admin.aprovar_revisoes_em_massa') }}"
+          class="card mb-4 border-primary">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="tab" value="{{ tab }}">
+      <div class="card-body py-2 d-flex flex-wrap align-items-center gap-3">
+        <div class="form-check mb-0">
+          <input class="form-check-input" type="checkbox" id="marcarTodas">
+          <label class="form-check-label fw-semibold" for="marcarTodas">
+            Marcar todas desta página ({{ flags|length }})
+          </label>
+        </div>
+        <div class="form-check mb-0">
+          <input class="form-check-input" type="checkbox" name="contar_no_anual"
+                 id="massaAnual" checked>
+          <label class="form-check-label small" for="massaAnual">
+            contar no ranking anual
+          </label>
+        </div>
+        <div class="form-check mb-0">
+          <input class="form-check-input" type="checkbox"
+                 name="velocidade_confiavel" id="massaVel">
+          <label class="form-check-label small" for="massaVel">
+            velocidade entra nas tabelas da página inicial
+          </label>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary ms-auto"
+                id="btnMassa" disabled
+                onclick="return confirm('Aprovar ' + document.getElementById('contaMassa').textContent + ' revisão(ões)? O km volta a contar no ranking.');">
+          <i class="fas fa-check-double me-1"></i>Aprovar marcadas
+          (<span id="contaMassa">0</span>)
+        </button>
+        <button type="submit" class="btn btn-sm btn-danger"
+                id="btnMassaRejeitar" disabled
+                formaction="{{ url_for('admin.rejeitar_revisoes_em_massa') }}"
+                onclick="return confirm('Rejeitar ' + document.getElementById('contaMassaRej').textContent + ' revisão(ões)? O km dessas atividades sai do ranking.');">
+          <i class="fas fa-times me-1"></i>Rejeitar marcadas
+          (<span id="contaMassaRej">0</span>)
+        </button>
+      </div>
+      <div class="px-3 pb-2">
+        <input type="text" name="observacao_rejeicao" class="form-control form-control-sm"
+               maxlength="300"
+               placeholder="Justificativa para rejeitar em massa (opcional)">
+      </div>
+      <div class="card-footer small text-muted py-2">
+        Aprovar devolve o km ao ranking — é o lado seguro. Se você aprovar por
+        engano, a revisão pode ser reaberta.
+      </div>
+    </form>
+    {% endif %}
+
+    {% for flag in flags %}
+    {% set at = atletas.get(flag.atleta_id) %}
+    <div class="card mb-4 shadow-sm">
+
+      {# Cabeçalho da flag #}
+      <div class="card-header d-flex align-items-center justify-content-between py-2"
+           style="background:#f8f9fa">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          {% if tab in ('pendentes', 'abertas') %}
+          <input class="form-check-input mt-0 caixa-massa" type="checkbox"
+                 form="formMassa" name="flag_ids" value="{{ flag.id }}"
+                 title="marcar esta revisão para aprovar em lote">
+          {% endif %}
+          <strong>{{ at.nome_atual if at else 'Atleta #' ~ flag.atleta_id }}</strong>
+          {% if at %}
+          <a href="/ath/{{ at.strava_id }}" target="_blank"
+             class="badge bg-danger text-decoration-none">
+            <i class="fab fa-strava"></i> Dashboard
+          </a>
+          {% endif %}
+          <span class="badge bg-secondary">{{ flag.tipo_flag }}</span>
+          {% if flag.nivel == 'alto' %}
+            <span class="badge bg-danger">{{ flag.nivel }}</span>
+          {% elif flag.nivel == 'medio' %}
+            <span class="badge bg-warning text-dark">{{ flag.nivel }}</span>
+          {% else %}
+            <span class="badge bg-light text-dark border">{{ flag.nivel }}</span>
+          {% endif %}
+          {% if flag.status == 'em_revisao' %}
+            <span class="badge bg-info">Em revisão</span>
+          {% elif flag.status == 'aprovada' %}
+            <span class="badge bg-success">Aprovada</span>
+          {% elif flag.status == 'rejeitada' %}
+            <span class="badge bg-danger">Rejeitada</span>
+          {% else %}
+            <span class="badge bg-warning text-dark">Aberta</span>
+          {% endif %}
+        </div>
+        <small class="text-muted text-nowrap">
+          #{{ flag.id }}
+          {% if flag.solicitado_revisao_em %}
+            · Solicitado {{ flag.solicitado_revisao_em.strftime('%d/%m %H:%M') }}
+          {% endif %}
+          {% if flag.resolvida_em %}
+            · Resolvido {{ flag.resolvida_em.strftime('%d/%m %H:%M') }}
+            {% if flag.resolvida_por %}por {{ flag.resolvida_por.nome }}{% endif %}
+          {% endif %}
+        </small>
+      </div>
+
+      <div class="card-body">
+
+        {# Dados da atividade #}
+        <div class="row g-2 mb-3">
+          <div class="col-md-5">
+            <strong>Atividade:</strong>
+            {% if flag.atividade %}
+              {% if flag.atividade.link_original %}
+              <a href="{{ flag.atividade.link_original }}" target="_blank" class="ms-1">
+                <i class="fab fa-strava text-danger"></i>
+                {{ flag.atividade.data_hora.strftime('%d/%m/%Y') if flag.atividade.data_hora else '' }}
+                — {{ '%.2f'|format(flag.atividade.distancia) }} km
+                ({{ flag.atividade.modalidade }})
+              </a>
+              {% else %}
+              {{ flag.atividade.data_hora.strftime('%d/%m/%Y') if flag.atividade.data_hora else '—' }}
+              — {{ '%.2f'|format(flag.atividade.distancia) }} km
+              {% endif %}
+            {% else %}—{% endif %}
+          </div>
+          <div class="col-md-7">
+            <strong>Motivo técnico:</strong>
+            <span class="text-muted small">{{ flag.descricao or '—' }}</span>
+          </div>
+        </div>
+
+        {% if review_links.get(flag.id) %}
+        <div class="mb-3">
+          <label class="form-label small fw-bold mb-1">Link publico para justificativa do atleta</label>
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control" value="{{ review_links.get(flag.id) }}" readonly>
+            <button type="button" class="btn btn-outline-primary copy-review-link"
+                    data-review-link="{{ review_links.get(flag.id) }}">
+              <i class="fas fa-copy me-1"></i>Copiar link
+            </button>
+          </div>
+          <div class="form-text">Compartilhe este link apenas com o atleta. Ele permite enviar justificativa e evidencias sem login.</div>
+        </div>
+        {% endif %}
+
+        {# Falar com o atleta — tom leve, culpa no aparelho #}
+        <div class="mb-3">
+          <button type="button" class="btn btn-outline-success btn-sm falar-atleta"
+                  data-url="{{ url_for('admin.mensagem_revisao', flag_id=flag.id) }}"
+                  data-alvo="msg-{{ flag.id }}">
+            <i class="fab fa-whatsapp me-1"></i>Falar com o atleta
+          </button>
+          <div id="msg-{{ flag.id }}" class="mt-2" style="display:none;">
+            <div class="alert alert-light border py-2 mb-1 small text-muted">
+              Escrito para <strong>entender, não acusar</strong>: a culpa fica sempre no GPS
+              ou no app, nunca na pessoa. Confira e ajuste antes de mandar.
+            </div>
+            <textarea class="form-control texto-atleta" rows="7"></textarea>
+            <div class="d-flex gap-2 mt-2 flex-wrap">
+              <button type="button" class="btn btn-sm btn-outline-primary copiar-atleta">
+                <i class="fas fa-copy me-1"></i>Copiar
+              </button>
+              <a class="btn btn-sm btn-success abrir-whatsapp" target="_blank" rel="noopener"
+                 style="display:none;">
+                <i class="fab fa-whatsapp me-1"></i>Abrir no WhatsApp
+              </a>
+              <span class="sem-telefone text-muted small align-self-center" style="display:none;">
+                Este atleta ainda não tem telefone cadastrado —
+                <a href="{{ url_for('admin.telefones_atletas') }}">preencher</a>.
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {# Justificativa do atleta #}
+        {% if flag.justificativa_atleta %}
+        <div class="alert alert-info py-2 mb-2">
+          <i class="fas fa-user me-1"></i>
+          <strong>Justificativa do atleta:</strong>
+          <div class="mt-1">{{ flag.justificativa_atleta }}</div>
+        </div>
+        {% endif %}
+
+        {# Resposta do admin #}
+        {% if flag.observacao_admin %}
+        <div class="alert alert-secondary py-2 mb-2">
+          <i class="fas fa-user-shield me-1"></i>
+          <strong>Resposta do admin{% if flag.resolvida_por %} ({{ flag.resolvida_por.nome }}){% endif %}:</strong>
+          <div class="mt-1">{{ flag.observacao_admin }}</div>
+        </div>
+        {% endif %}
+
+        {# Recursos utilizados #}
+        {% if flag.recursos_utilizados > 0 %}
+        <div class="text-muted small mb-2">
+          <i class="fas fa-balance-scale me-1"></i>
+          Recursos utilizados: {{ flag.recursos_utilizados }}/{{ flag.max_recursos }}
+        </div>
+        {% endif %}
+
+        {# Evidências #}
+        {% set evidencias = flag.evidencias %}
+        {% if evidencias %}
+        <div class="mb-3">
+          <strong class="small"><i class="fas fa-paperclip me-1"></i>Evidências anexadas ({{ evidencias|length }}):</strong>
+          <div class="d-flex flex-wrap gap-2 mt-1">
+            {% for ev in evidencias %}
+            <a href="{{ url_for('admin.ver_evidencia', ev_id=ev.id) }}" target="_blank"
+               class="btn btn-outline-secondary btn-sm">
+              {% if 'image' in (ev.tipo_mime or '') %}
+                <i class="fas fa-image me-1"></i>
+              {% elif 'pdf' in (ev.tipo_mime or '') %}
+                <i class="fas fa-file-pdf text-danger me-1"></i>
+              {% else %}
+                <i class="fas fa-file me-1"></i>
+              {% endif %}
+              {{ ev.arquivo_nome }}
+              <span class="badge bg-light text-dark ms-1">
+                {% if ev.enviado_por == 'atleta' %}atleta{% else %}admin{% endif %}
+              </span>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {# Formulário: upload de evidência pelo admin #}
+        <details class="mb-3">
+          <summary class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-paperclip me-1"></i>Anexar evidência
+          </summary>
+          <form method="POST" enctype="multipart/form-data"
+                action="{{ url_for('admin.upload_evidencia', flag_id=flag.id) }}"
+                class="mt-2 border rounded p-2 bg-light">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="tab" value="{{ tab }}">
+            <div class="input-group input-group-sm">
+              <input type="file" name="evidencia" class="form-control"
+                     accept="image/*,.pdf,.doc,.docx,.txt" required>
+              <button type="submit" class="btn btn-secondary">
+                <i class="fas fa-upload me-1"></i>Enviar
+              </button>
+            </div>
+            <div class="form-text">Imagem, PDF ou DOCX — máx. 10 MB</div>
+          </form>
+        </details>
+
+        {# Ações: aprovar / rejeitar #}
+        {% if flag.status in ('em_revisao', 'aberta') %}
+        <div class="border-top pt-3">
+          <div class="row g-2">
+            <div class="col-md-6">
+              <form method="POST" action="{{ url_for('admin.aprovar_revisao', flag_id=flag.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <label class="form-label small fw-bold text-success">
+                  <i class="fas fa-check me-1"></i>Aprovar — atividade volta a contar
+                </label>
+                <div class="form-check form-switch small mb-1">
+                  <input class="form-check-input" type="checkbox" role="switch"
+                         id="contar-anual-{{ flag.id }}" name="contar_no_anual" checked>
+                  <label class="form-check-label" for="contar-anual-{{ flag.id }}">
+                    Contar km no ranking anual
+                  </label>
+                </div>
+                {% if flag.tipo_flag in ('VELOCIDADE_ANORMAL', 'TEMPO_IMPOSSIVEL') %}
+                <div class="form-check form-switch small mb-1">
+                  <input class="form-check-input" type="checkbox" role="switch"
+                         id="vel-confiavel-{{ flag.id }}" name="velocidade_confiavel">
+                  <label class="form-check-label" for="vel-confiavel-{{ flag.id }}">
+                    Esta velocidade entra na média de atleta mais veloz
+                  </label>
+                </div>
+                {% endif %}
+                <div class="input-group input-group-sm">
+                  <textarea name="observacao" class="form-control" rows="2"
+                            placeholder="Observação para o atleta (opcional)..."></textarea>
+                  <button type="submit" class="btn btn-success"
+                          onclick="return confirm('Aprovar esta revisão?')">
+                    Aprovar
+                  </button>
+                </div>
+              </form>
+            </div>
+            <div class="col-md-6">
+              <form method="POST" action="{{ url_for('admin.rejeitar_revisao', flag_id=flag.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <label class="form-label small fw-bold text-danger">
+                  <i class="fas fa-times me-1"></i>Rejeitar — km não conta
+                </label>
+                <div class="input-group input-group-sm">
+                  <textarea name="observacao" class="form-control" rows="2"
+                            placeholder="Justificativa obrigatória..." required></textarea>
+                  <button type="submit" class="btn btn-danger"
+                          onclick="return confirm('Rejeitar esta revisão?')">
+                    Rejeitar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+          {% if current_user.is_master %}
+          <div class="mt-2">
+            <form method="POST" action="{{ url_for('admin.reabrir_revisao', flag_id=flag.id) }}"
+                  class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-outline-warning btn-sm">
+                <i class="fas fa-redo me-1"></i>Reabrir (Master)
+              </button>
+            </form>
+          </div>
+          {% endif %}
+        </div>
+
+        {% elif flag.status == 'rejeitada' %}
+        <div class="border-top pt-2 mt-2">
+          {% if flag.recursos_utilizados < flag.max_recursos %}
+          <form method="POST" action="{{ url_for('admin.registrar_recurso', flag_id=flag.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label class="form-label small fw-bold">
+              <i class="fas fa-balance-scale me-1"></i>
+              Registrar recurso do atleta ({{ flag.recursos_utilizados }}/{{ flag.max_recursos }})
+            </label>
+            <div class="input-group input-group-sm">
+              <textarea name="observacao" class="form-control" rows="2"
+                        placeholder="Justificativa do recurso..." required></textarea>
+              <button type="submit" class="btn btn-outline-primary">Recurso</button>
+            </div>
+          </form>
+          {% else %}
+          <div class="text-muted small">
+            <i class="fas fa-lock me-1"></i>Decisão final — recursos esgotados.
+          </div>
+          {% endif %}
+          {% if current_user.is_master %}
+          <div class="mt-2">
+            <form method="POST" action="{{ url_for('admin.reabrir_revisao', flag_id=flag.id) }}"
+                  class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-outline-warning btn-sm">
+                <i class="fas fa-redo me-1"></i>Reabrir (Master)
+              </button>
+            </form>
+          </div>
+          {% endif %}
+        </div>
+
+        {% elif flag.status == 'aprovada' and current_user.is_master %}
+        <div class="border-top pt-2 mt-2">
+          <form method="POST" action="{{ url_for('admin.reabrir_revisao', flag_id=flag.id) }}"
+                class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-warning btn-sm">
+              <i class="fas fa-redo me-1"></i>Reverter decisão (Master)
+            </button>
+          </form>
+        </div>
+        {% endif %}
+
+      </div>{# card-body #}
+    </div>{# card #}
+    {% endfor %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.copy-review-link').forEach(function (button) {
+  button.addEventListener('click', function () {
+    var link = button.getAttribute('data-review-link') || '';
+    if (!link) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(function () {
+        button.innerHTML = '<i class="fas fa-check me-1"></i>Copiado';
+      }).catch(function () { window.prompt('Copie o link:', link); });
+    } else {
+      window.prompt('Copie o link:', link);
+    }
+  });
+});
+
+// Falar com o atleta: busca o texto pronto e mostra sem recarregar a página.
+document.querySelectorAll('.falar-atleta').forEach(function (botao) {
+  botao.addEventListener('click', function () {
+    var caixa = document.getElementById(botao.dataset.alvo);
+    if (!caixa) return;
+    if (caixa.style.display === 'block') { caixa.style.display = 'none'; return; }
+    botao.disabled = true;
+    fetch(botao.dataset.url, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        caixa.querySelector('.texto-atleta').value = d.texto || '';
+        var link = caixa.querySelector('.abrir-whatsapp');
+        var aviso = caixa.querySelector('.sem-telefone');
+        if (d.whatsapp_url) {
+          link.href = d.whatsapp_url + '?text=' + encodeURIComponent(d.texto || '');
+          link.style.display = '';
+          aviso.style.display = 'none';
+        } else {
+          link.style.display = 'none';
+          aviso.style.display = '';
+        }
+        caixa.style.display = 'block';
+      })
+      .catch(function () { alert('Não consegui montar a mensagem agora.'); })
+      .finally(function () { botao.disabled = false; });
+  });
+});
+
+document.querySelectorAll('.copiar-atleta').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var area = b.closest('div').parentNode.querySelector('.texto-atleta');
+    if (!area) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(area.value).then(function () {
+        b.innerHTML = '<i class="fas fa-check me-1"></i>Copiado';
+      }).catch(function () { area.select(); document.execCommand('copy'); });
+    } else { area.select(); document.execCommand('copy'); }
+  });
+});
+</script>
+
+<script>
+// A barra de aprovar em massa: so' habilita o botao quando ha algo marcado, e
+// diz QUANTAS estao marcadas. Botao que age sobre "nada" e' pedido de engano.
+(function () {
+  var todas  = document.getElementById('marcarTodas');
+  var botao  = document.getElementById('btnMassa');
+  var conta  = document.getElementById('contaMassa');
+  var botaoR = document.getElementById('btnMassaRejeitar');
+  var contaR = document.getElementById('contaMassaRej');
+  if (!botao) { return; }
+  var caixas = document.querySelectorAll('.caixa-massa');
+
+  function atualizar() {
+    var n = document.querySelectorAll('.caixa-massa:checked').length;
+    conta.textContent = n;
+    botao.disabled = (n === 0);
+    if (botaoR) { contaR.textContent = n; botaoR.disabled = (n === 0); }
+  }
+  caixas.forEach(function (c) { c.addEventListener('change', atualizar); });
+  if (todas) {
+    todas.addEventListener('change', function () {
+      caixas.forEach(function (c) { c.checked = todas.checked; });
+      atualizar();
+    });
+  }
+  atualizar();
+})();
+</script>
+
+{% endblock %}

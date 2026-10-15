@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Pendências do Upload - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <h4 class="mb-0">
+        <i class="fas fa-exclamation-triangle text-warning me-2"></i>Pendências do Upload
+    </h4>
+    <a href="{{ url_for('upload.index') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-arrow-left"></i> Voltar
+    </a>
+</div>
+
+{% if error_message %}
+<div class="alert alert-danger">{{ error_message }}</div>
+{% elif file %}
+<div class="card mb-3">
+    <div class="card-body small">
+        <div><strong>Arquivo:</strong> {{ file.arquivo_nome }}</div>
+        <div><strong>Cidade:</strong> {{ file.cidade }}</div>
+        <div><strong>Processado em:</strong> {{ file.processado_em.strftime('%d/%m/%Y %H:%M') if file.processado_em else '-' }}</div>
+        <div><strong>Links visitados:</strong> {{ file.links_scrapeados or 0 }}</div>
+        <div><strong>Pendências desta rodada:</strong> {{ file.atividades_pendentes or 0 }}</div>
+        {% set n_retry = details | selectattr('retryable') | list | length %}
+        {% set n_perm = (details | length) - n_retry %}
+        {% if details %}
+        <div class="mt-2">
+            <span class="badge bg-warning text-dark me-1">{{ n_retry }} retentável(is)</span>
+            <span class="badge bg-secondary">{{ n_perm }} permanente(s)</span>
+        </div>
+        <div class="text-muted mt-1" style="font-size:.85rem;">
+            <i class="fas fa-info-circle"></i>
+            <strong>Retentável</strong>: pode resolver reenviando a conversa depois (bloqueio temporário, timeout).
+            <strong>Permanente</strong>: o link em si não é uma atividade válida do Strava — reenviar não adianta.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if details %}
+<div class="card shadow-sm mb-2">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <strong class="small me-1"><i class="fas fa-filter me-1"></i>Filtrar:</strong>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Filtro por tipo">
+                <button type="button" class="btn btn-outline-dark active" data-filtro-tipo="todas">Todas</button>
+                <button type="button" class="btn btn-outline-warning" data-filtro-tipo="retentavel">Retentáveis</button>
+                <button type="button" class="btn btn-outline-secondary" data-filtro-tipo="permanente">Permanentes</button>
+            </div>
+            {% set etapas = details | map(attribute='stage') | reject('none') | unique | list %}
+            <select id="filtroEtapa" class="form-select form-select-sm" style="width:auto">
+                <option value="">Todas as etapas</option>
+                {% for etapa in etapas | sort %}
+                <option value="{{ etapa }}">{{ etapa }}</option>
+                {% endfor %}
+            </select>
+            <span class="small text-muted ms-auto">
+                Exibindo <strong id="contadorFiltro">{{ details | length }}</strong> de {{ details | length }}
+            </span>
+        </div>
+    </div>
+</div>
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0" id="tabelaPendencias">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:4rem">#</th>
+                        <th>Atividade</th>
+                        <th>Motivo</th>
+                        <th>Etapa</th>
+                        <th class="text-center">Tipo</th>
+                        <th class="text-center">Link</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in details %}
+                    <tr data-retryable="{{ '1' if item.retryable else '0' }}"
+                        data-stage="{{ item.stage or 'scraping' }}">
+                        <td>{{ loop.index }}</td>
+                        <td>
+                            {% if item.activity_id %}
+                            <code>{{ item.activity_id }}</code>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ item.reason or 'Falha nao especificada.' }}
+                            {# Quem postou e quando (15/09/2026): sem isso o
+                               admin nao tem como pedir o link certo. #}
+                            {% if item.autor or item.quando %}
+                            <div class="small text-muted">
+                                Postado por {{ item.autor or 'não identificado' }}
+                                {% if item.quando %}em {{ item.quando }}{% endif %}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td><span class="badge bg-secondary">{{ item.stage or 'scraping' }}</span></td>
+                        <td class="text-center">
+                            {% if item.retryable %}
+                            <span class="badge bg-warning text-dark">retentável</span>
+                            {% else %}
+                            <span class="badge bg-secondary">permanente</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if item.url %}
+                            <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer"
+                               class="btn btn-outline-danger btn-sm">
+                                <i class="fab fa-strava"></i> Abrir
+                            </a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    let tipoAtivo = 'todas';
+    const botoes = document.querySelectorAll('[data-filtro-tipo]');
+    const seletorEtapa = document.getElementById('filtroEtapa');
+    const linhas = document.querySelectorAll('#tabelaPendencias tbody tr');
+    const contador = document.getElementById('contadorFiltro');
+
+    function aplicar() {
+        const etapa = seletorEtapa.value;
+        let visiveis = 0;
+        linhas.forEach(function (tr) {
+            const okTipo = tipoAtivo === 'todas'
+                || (tipoAtivo === 'retentavel' && tr.dataset.retryable === '1')
+                || (tipoAtivo === 'permanente' && tr.dataset.retryable === '0');
+            const okEtapa = !etapa || tr.dataset.stage === etapa;
+            const mostrar = okTipo && okEtapa;
+            tr.style.display = mostrar ? '' : 'none';
+            if (mostrar) visiveis += 1;
+        });
+        contador.textContent = visiveis;
+    }
+
+    botoes.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            botoes.forEach(function (b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            tipoAtivo = btn.dataset.filtroTipo;
+            aplicar();
+        });
+    });
+    seletorEtapa.addEventListener('change', aplicar);
+}());
+</script>
+{% else %}
+<div class="alert alert-success">
+    <i class="fas fa-check-circle me-2"></i>Nenhuma pendência registrada para este processamento.
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

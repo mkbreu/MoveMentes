@@ -1,0 +1,8 @@
+{
+  "_leia-me": "Copie para instance/dados_locais.json e preencha com os dados reais. Esse arquivo NUNCA vai para o git (instance/ e ignorado). Aqui ficam so formatos.",
+  "contato_email": "contato@exemplo.com",
+  "contato_whatsapp": "55DD9XXXXXXXX",
+  "contato_telefone_exibicao": "(DD) 9XXXX-XXXX",
+  "pix_chave_padrao": "sua-chave-pix",
+  "secret_key_legada": ""
+}

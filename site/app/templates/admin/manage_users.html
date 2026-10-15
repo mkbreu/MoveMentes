@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Gerenciar Usuários - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="display-5 text-center"><i class="fas fa-users-cog text-primary"></i> Gerenciar Usuários</h1>
+    <p class="lead text-center">Crie, edite ou altere o status dos usuários da aplicação.</p>
+
+    <div class="text-end mb-3">
+        <a href="{{ url_for('admin.add_user') }}" class="btn btn-primary">
+            <i class="fas fa-user-plus"></i> Adicionar Novo Usuário
+        </a>
+    </div>
+
+    {% if users %}
+    <div class="table-responsive">
+        <table class="table table-hover table-striped shadow-sm rounded">
+            <thead class="bg-primary text-white">
+                <tr>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Telefone</th>
+                    <th>Cidade</th>
+                    <th>Nível</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user_item in users %}
+                <tr>
+                    <td>{{ user_item.nome }}</td>
+                    <td>{{ user_item.email }}</td>
+                    <td class="small">
+                        {% if user_item.telefone %}{{ user_item.telefone }}
+                        {% else %}<span class="badge bg-warning text-dark">sem telefone</span>{% endif %}
+                    </td>
+                    <td>{{ user_item.cidade }}</td>
+                    <td>
+                        <span class="badge {% if user_item.is_supremo %}bg-dark{% elif user_item.is_master %}bg-primary{% else %}bg-secondary{% endif %}">
+                            {{ user_item.rotulo_tipo }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if user_item.ativo %}
+                            <span class="badge bg-success">Ativo</span>
+                        {% else %}
+                            <span class="badge bg-danger">Inativo</span>
+                        {% endif %}
+                        {% if user_item.senha_provisoria %}
+                            <span class="badge bg-warning text-dark" title="Ainda não trocou a senha do primeiro acesso">senha provisória</span>
+                        {% endif %}
+                    </td>
+                    <td class="d-flex flex-wrap gap-1"> {# Ajustado para botões flexíveis #}
+                        {# Ativar/Desativar: privilegio IGUAL ou superior ja basta #}
+                        {% if current_user.pode_desativar(user_item) %}
+                            <a href="{{ url_for('admin.toggle_user_status', user_id=user_item.id) }}"
+                               class="btn {% if user_item.ativo %}btn-danger{% else %}btn-success{% endif %} btn-sm"
+                               onclick="return confirm('Tem certeza que deseja {{ 'desativar' if user_item.ativo else 'ativar' }} este usuário?');">
+                                {% if user_item.ativo %}<i class="fas fa-user-slash"></i> Desativar{% else %}<i class="fas fa-user-check"></i> Ativar{% endif %}
+                            </a>
+                        {% endif %}
+
+                        {# Editar / transferir de cidade: exige privilegio MAIOR #}
+                        {% if current_user.pode_gerir(user_item) %}
+                            <a href="{{ url_for('admin.edit_user', user_id=user_item.id) }}" class="btn btn-info btn-sm">
+                                <i class="fas fa-edit"></i> Editar
+                            </a>
+                        {% elif current_user.id == user_item.id %}
+                            <a href="{{ url_for('auth.change_password') }}" class="btn btn-info btn-sm">
+                                <i class="fas fa-key"></i> Minha senha
+                            </a>
+                        {% endif %}
+
+                        {# Reset de senha #}
+                        {% if current_user.pode_gerir(user_item) %}
+                            <form action="{{ url_for('admin.generate_reset', user_id=user_item.id) }}" method="POST"
+                                  onsubmit="return confirm('Gerar link de redefinição de senha para {{ user_item.email }}? O link expira em 24h.');" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-warning btn-sm">
+                                    <i class="fas fa-key"></i> Reset Senha
+                                </button>
+                            </form>
+                        {% endif %}
+
+                        {# Excluir: master para baixo, com backup verificado antes #}
+                        {% if current_user.is_master and current_user.pode_gerir(user_item) %}
+                            <form action="{{ url_for('admin.delete_user', user_id=user_item.id) }}" method="POST" onsubmit="return confirm('ATENÇÃO: excluir o usuário {{ user_item.email }}? O sistema faz um backup completo do banco antes — se o backup falhar, nada é apagado.');" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-danger btn-sm">
+                                    <i class="fas fa-trash-alt"></i> Excluir
+                                </button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info text-center mt-4">
+        Nenhum usuário cadastrado ainda.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

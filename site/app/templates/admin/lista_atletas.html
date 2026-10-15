@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+{% block title %}Atletas — MoveMentes{% endblock %}
+
+{% block content %}
+{# TUDO O QUE FICA CONGELADO MORA DENTRO DESTE BLOCO (pedido do dono, 08/09).
+   Congelar só o cabeçalho da tabela não bastava: ao rolar, os botões
+   "Atualizar fotos/nomes" e a busca saíam da tela, e são justamente eles que a
+   pessoa precisa alcançar de qualquer ponto da lista. #}
+<div class="topo-atletas">
+{# `flex-wrap` para o bloco quebrar em vez de espremer os botões no celular;
+   `cabecalho-atletas` é o gancho do CSS que reduz só o espaçamento vertical. #}
+<div class="cabecalho-atletas d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <h4 class="mb-0">
+    <i class="fas fa-users me-2 text-success"></i>Atletas
+    {% if cidade_filtro %}<small class="text-muted fs-6">— {{ cidade_filtro }}</small>{% endif %}
+  </h4>
+  <div class="d-flex align-items-center gap-2">
+    {% if current_user.pode_administrar %}
+    <button type="button" id="btnAtualizarFotos" class="btn btn-outline-primary btn-sm"
+            data-url="{{ url_for('admin.atualizar_fotos_atletas') }}"
+            data-inicio="Buscando as fotos no Strava..."
+            title="Só a foto. Pula quem já tem foto de menos de 30 dias.">
+      <i class="fas fa-camera me-1"></i>Atualizar fotos
+    </button>
+    <button type="button" id="btnAtualizarNomes" class="btn btn-outline-primary btn-sm"
+            data-url="{{ url_for('admin.atualizar_nomes_atletas') }}"
+            data-inicio="Buscando os nomes no Strava..."
+            title="Só o nome do Strava. O nome escolhido para o ranking não é tocado.">
+      <i class="fas fa-id-card me-1"></i>Atualizar nomes
+    </button>
+    {% if pode_arquivar %}
+    <button type="button" id="btnMesclar" class="btn btn-outline-danger btn-sm d-none">
+      <i class="fas fa-code-merge me-1"></i>Mesclar selecionados (<span id="qtdSelecionados">0</span>)
+    </button>
+    {% endif %}
+    {% endif %}
+    <span class="badge bg-secondary fs-6">{{ atletas_info|length }} atleta(s)</span>
+  </div>
+</div>
+<div id="fotosStatus" class="alert alert-info d-none"></div>
+{% if atletas_info %}
+<div class="filtro-atletas mb-2 d-flex flex-wrap gap-2 align-items-center">
+  <input id="buscarAtleta" class="form-control" type="search" placeholder="Buscar atleta pelo nome" autocomplete="off" style="max-width:22rem;">
+  <div class="form-check ms-auto mb-0">
+    <input class="form-check-input" type="checkbox" id="mostrarArquivados"
+           {{ 'checked' if mostrar_arquivados }}>
+    <label class="form-check-label small" for="mostrarArquivados">Mostrar arquivados</label>
+  </div>
+</div>
+{% endif %}
+</div>{# /topo-atletas — daqui para baixo é o que rola #}
+
+{% if atletas_info %}
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    {# `tabela-atletas` dá teto de altura a esta área: é ela que rola, e por
+       isso o cabeçalho da tabela consegue grudar no topo (ver style.css). #}
+    <div class="table-responsive tabela-atletas">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            {% if pode_arquivar %}<th style="width:2rem"></th>{% endif %}
+            <th style="width:2.5rem"></th>
+            {# `col-secundaria` some no celular. A escolha do que sai não é
+               por tamanho, é por uso: Cidade a lista já filtra, Strava ID é
+               número técnico e Desde raramente decide algo — enquanto Nome,
+               Nome no ranking e Ações são o motivo de a tela existir. Assim
+               cabe sem rolagem horizontal, que no telefone esconde justamente
+               a coluna de Ações. #}
+            <th>Nome</th>
+            <th class="col-secundaria">Cidade</th>
+            <th>Nome no ranking</th>
+            {# SEXO: so' no desktop (col-secundaria), a pedido do dono. E' dado
+               que ele preenche olhando a lista, e no celular a tabela ja fica
+               apertada. NUNCA aparece em pagina publica por pessoa -- serve so'
+               para a contagem agregada da home. #}
+            <th class="col-secundaria text-center" style="width:5.5rem">Sexo</th>
+            <th class="col-secundaria">Strava ID</th>
+            <th class="col-secundaria">Desde</th>
+            <th class="text-center">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for info in atletas_info %}{% set atleta = info.obj %}
+          <tr class="athlete-row {% if atleta.arquivado %}table-secondary text-muted athlete-arquivado d-none{% endif %}"
+              data-athlete-nome="{{ atleta.nome_atual or '' }}"
+              data-arquivado="{{ '1' if atleta.arquivado else '0' }}">
+            {% if pode_arquivar %}
+            <td class="text-center">
+              <input type="checkbox" class="form-check-input chk-mesclar" value="{{ atleta.id }}">
+            </td>
+            {% endif %}
+            <td class="text-center">
+              {% if atleta.foto_url %}
+              <img src="{{ atleta.foto_url }}" alt=""
+                   style="width:36px;height:36px;border-radius:50%;object-fit:cover;{% if atleta.arquivado %}filter:grayscale(1);opacity:.6;{% endif %}"
+                   onerror="this.style.display='none'">
+              {% else %}
+              <div style="width:36px;height:36px;border-radius:50%;background:{% if atleta.arquivado %}#888{% else %}#2d6a4f{% endif %};
+                          color:#fff;display:flex;align-items:center;justify-content:center;
+                          font-weight:700;font-size:1rem;margin:auto;">
+                {{ (atleta.nome_atual or '?')[0]|upper }}
+              </div>
+              {% endif %}
+            </td>
+            <td class="fw-semibold">
+              {{ atleta.nome_atual or '—' }}
+              {% if atleta.atleta_canonico_id %}<span class="badge bg-info ms-1" title="Km e perfil consolidados em outro atleta">mesclado</span>
+              {% elif atleta.arquivado %}<span class="badge bg-secondary ms-1">arquivado</span>{% endif %}
+            </td>
+            <td class="small col-secundaria">{{ info.cidades or '—' }}</td>
+            <td class="small">
+              {% if atleta.nome_exibicao %}
+                <span class="badge" style="background:#e7f1ff;color:#0a58ca;
+                             border:1px solid #b6d4fe;font-weight:600;">
+                  {{ atleta.nome_exibicao }}</span>
+              {% else %}
+                <span class="text-muted">usa o do Strava</span>
+              {% endif %}
+            </td>
+            <td class="col-secundaria text-center">
+              {# Salva sozinho ao escolher: sem abrir a tela de ajustar km,
+                 sem recarregar a pagina. Vazio fica destacado, para o dono
+                 bater o olho e ver quem falta. #}
+              <select class="form-select form-select-sm mm-sexo{% if not atleta.sexo %} border-warning{% endif %}"
+                      data-sid="{{ atleta.strava_id }}"
+                      style="font-size:.78rem; padding:.15rem 1.4rem .15rem .4rem;"
+                      title="{% if atleta.sexo %}marcado{% else %}ainda não preenchido{% endif %}">
+                <option value="" {% if not atleta.sexo %}selected{% endif %}>—</option>
+                <option value="M" {% if atleta.sexo == 'M' %}selected{% endif %}>M</option>
+                <option value="F" {% if atleta.sexo == 'F' %}selected{% endif %}>F</option>
+              </select>
+            </td>
+            <td class="col-secundaria"><code class="text-muted">{{ atleta.strava_id }}</code></td>
+            <td class="text-muted small col-secundaria">
+              {{ atleta.criado_em.strftime('%d/%m/%Y') if atleta.criado_em else '—' }}
+            </td>
+            <td class="text-center text-nowrap">
+              <a href="{{ url_for('athlete.dashboard', strava_id=atleta.strava_id) }}"
+                 class="btn btn-outline-success btn-sm" target="_blank">
+                <i class="fas fa-chart-bar"></i><span class="rotulo-acao"> Ver</span>
+              </a>
+              {% if current_user.pode_administrar %}
+              <a href="{{ url_for('admin.ajuste_manual_atleta', strava_id=atleta.strava_id) }}"
+                 class="btn btn-outline-primary btn-sm">
+                <i class="fas fa-plus"></i><span class="rotulo-acao"> Ajustar km</span>
+              </a>
+              {# O perfil sem codigo TAMBEM pode ser arquivado (29/08/2026).
+                 Ate aqui o botao era escondido justamente para
+                 `strava_id == '0'` -- o unico caso em que ele era mesmo
+                 necessario. O dono clicava e nada acontecia porque nao
+                 havia botao nenhum. #}
+              {% if pode_arquivar %}
+              <button type="button"
+                      class="btn btn-outline-secondary btn-sm btn-arquivar"
+                      data-sid="{{ atleta.strava_id }}"
+                      data-acao="{{ 'desarquivar' if atleta.arquivado else 'arquivar' }}">
+                {% if atleta.arquivado %}<i class="fas fa-rotate-left"></i><span class="rotulo-acao"> Reativar</span>{% else %}<i class="fas fa-box-archive"></i><span class="rotulo-acao"> Arquivar</span>{% endif %}
+              </button>
+              <div class="form-check form-check-inline small text-muted" title="{{ 'Também traz de volta os quilômetros ocultados' if atleta.arquivado else 'Também tira os quilômetros de toda conta (ranking, página inicial, relatórios)' }}">
+                <input class="form-check-input chk-arquivar-km" type="checkbox" id="km_{{ atleta.strava_id }}">
+                <label class="form-check-label" for="km_{{ atleta.strava_id }}">e os km</label>
+              </div>
+              {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-info">
+  <i class="fas fa-info-circle me-2"></i>Nenhum atleta cadastrado para esta cidade ainda.
+</div>
+{% endif %}
+<script>
+  const fotosStatus = document.getElementById('fotosStatus');
+  // OS DOIS BOTOES USAM O MESMO ACOMPANHAMENTO (06/09/2026): a URL e o
+  // recado de inicio vem do proprio botao (`data-url`, `data-inicio`).
+  // Duplicar este bloco seria a garantia de os dois divergirem depois.
+  const botoes = [document.getElementById('btnAtualizarFotos'),
+                  document.getElementById('btnAtualizarNomes')].filter(Boolean);
+  botoes.forEach((btnFotos) => {
+    btnFotos.addEventListener('click', async () => {
+      botoes.forEach(b => b.disabled = true);
+      fotosStatus.classList.remove('d-none', 'alert-success', 'alert-danger');
+      fotosStatus.classList.add('alert-info');
+      fotosStatus.textContent = btnFotos.dataset.inicio || 'Iniciando...';
+      try {
+        const resp = await fetch(btnFotos.dataset.url, {
+          method: 'POST',
+          headers: {'X-CSRFToken': "{{ csrf_token() }}"},
+          credentials: 'same-origin',
+        });
+        const data = await resp.json();
+        if (data.status !== 'ok') throw new Error(data.message || 'falha ao iniciar');
+        const statusUrl = "{{ url_for('admin.maintenance_status', job_id='JOBID') }}".replace('JOBID', data.job_id);
+        const acompanhar = async () => {
+          try {
+            const r = await fetch(statusUrl, {credentials: 'same-origin'});
+            const job = await r.json();
+            fotosStatus.textContent = (job.message || 'Processando...') + (job.pct ? ` (${job.pct}%)` : '');
+            if (job.done) {
+              fotosStatus.classList.remove('alert-info');
+              fotosStatus.classList.add(job.ok ? 'alert-success' : 'alert-danger');
+              botoes.forEach(b => b.disabled = false);
+              if (job.ok) setTimeout(() => window.location.reload(), 2500);
+              return;
+            }
+          } catch (e) { /* rede oscilou; segue tentando */ }
+          setTimeout(acompanhar, 2500);
+        };
+        acompanhar();
+      } catch (erro) {
+        fotosStatus.classList.remove('alert-info');
+        fotosStatus.classList.add('alert-danger');
+        fotosStatus.textContent = 'Não foi possível iniciar: ' + erro.message;
+        botoes.forEach(b => b.disabled = false);
+      }
+    });
+  });
+
+  const buscaAtleta = document.getElementById('buscarAtleta');
+  const chkArquivados = document.getElementById('mostrarArquivados');
+  function filtrarLista() {
+    const termo = (buscaAtleta ? buscaAtleta.value : '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const mostrarArq = chkArquivados && chkArquivados.checked;
+    document.querySelectorAll('.athlete-row').forEach(linha => {
+      const nome = (linha.dataset.athleteNome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const arq = linha.dataset.arquivado === '1';
+      const okNome = !termo || nome.includes(termo);
+      const okArq = mostrarArq || !arq;
+      linha.classList.toggle('d-none', !(okNome && okArq));
+    });
+  }
+  if (buscaAtleta) buscaAtleta.addEventListener('input', filtrarLista);
+  // O ARQUIVADO NAO ESTA MAIS NA PAGINA (29/08/2026): o servidor deixou de
+  // manda-lo. Entao a caixa recarrega pedindo -- esconder/mostrar por CSS
+  // so funcionava enquanto ele vinha e ficava invisivel.
+  if (chkArquivados) chkArquivados.addEventListener('change', () => {
+    const url = new URL(window.location.href);
+    if (chkArquivados.checked) { url.searchParams.set('arquivados', '1'); }
+    else { url.searchParams.delete('arquivados'); }
+    window.location.assign(url.toString());
+  });
+
+  const btnMesclar = document.getElementById('btnMesclar');
+  const qtdSelecionados = document.getElementById('qtdSelecionados');
+  function atualizarBtnMesclar() {
+    const qtd = document.querySelectorAll('.chk-mesclar:checked').length;
+    if (qtdSelecionados) qtdSelecionados.textContent = qtd;
+    if (btnMesclar) btnMesclar.classList.toggle('d-none', qtd < 2);
+  }
+  document.querySelectorAll('.chk-mesclar').forEach(chk => {
+    chk.addEventListener('change', atualizarBtnMesclar);
+  });
+  if (btnMesclar) btnMesclar.addEventListener('click', async () => {
+    const ids = Array.from(document.querySelectorAll('.chk-mesclar:checked')).map(c => c.value);
+    if (ids.length < 2) return;
+    if (!confirm(
+      'Fundir ' + ids.length + ' perfis num só? Os quilômetros e o histórico ' +
+      'passam a contar juntos (ranking, página do atleta, tudo). Nome, foto e ' +
+      'links do Strava continuam aparecendo, mas essa ação não tem "desfazer" ' +
+      'pela tela. Se algum dos perfis tinha nome de exibição corrigido à mão, ' +
+      'confira depois da fusão.'
+    )) return;
+    const fd = new FormData();
+    ids.forEach(id => fd.append('ids', id));
+    fd.append('csrf_token', "{{ csrf_token() }}");
+    try {
+      const r = await fetch("{{ url_for('admin.mesclar_atletas') }}", {
+        method: 'POST', body: fd, credentials: 'same-origin'
+      });
+      const data = await r.json();
+      if (data.status !== 'ok') throw new Error(data.message || 'falha');
+      alert(data.message);
+      window.location.reload();
+    } catch (e) {
+      alert('Não foi possível mesclar: ' + e.message);
+    }
+  });
+
+  document.querySelectorAll('.btn-arquivar').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const acao = btn.dataset.acao;
+      const chkKm = document.getElementById('km_' + btn.dataset.sid);
+      const comKm = !!(chkKm && chkKm.checked);
+      const aviso = acao === 'arquivar'
+        ? (comKm
+            ? 'Arquivar este perfil E TIRAR os quilômetros de toda conta (ranking, página inicial, relatórios)? Não volta sozinho -- só desarquivando na mão.'
+            : 'Arquivar este perfil? Ele sai das listas, mas volta sozinho se uma atividade nova chegar. Os quilômetros continuam contando.')
+        : (comKm
+            ? 'Reativar o perfil E RESTAURAR os quilômetros que este botão tinha tirado?'
+            : 'Reativar só o perfil? (os quilômetros que já estavam contando continuam contando)');
+      if (!confirm(aviso)) return;
+      const fd = new FormData();
+      fd.append('acao', acao);
+      fd.append('com_km', comKm ? '1' : '0');
+      fd.append('csrf_token', "{{ csrf_token() }}");
+      try {
+        const url = "{{ url_for('admin.arquivar_atleta', strava_id='SID') }}".replace('SID', btn.dataset.sid);
+        const r = await fetch(url, {method: 'POST', body: fd, credentials: 'same-origin'});
+        const data = await r.json();
+        if (data.status !== 'ok') throw new Error(data.message || 'falha');
+        window.location.reload();
+      } catch (e) {
+        alert('N\u00e3o foi poss\u00edvel: ' + e.message);
+      }
+    });
+  });
+</script>
+
+<script>
+// Salva o sexo direto na tabela, sem sair da pagina (09/09/2026, pedido do
+// dono). Falhar aqui devolve o valor anterior e avisa: o pior desfecho seria o
+// seletor mostrar uma coisa e o banco guardar outra.
+document.querySelectorAll('.mm-sexo').forEach(function (sel) {
+  var anterior = sel.value;
+  sel.addEventListener('change', function () {
+    var dados = new FormData();
+    dados.append('sexo', sel.value);
+    // O TOKEN VEM DO JINJA, como nas outras funcoes desta pagina (linhas 195,
+    // 272, 302). Buscar `input[name=csrf_token]` no DOM nao funciona aqui: esta
+    // tela nao tem formulario com esse campo, so' os tokens embutidos no JS --
+    // e por isso o seletor de sexo respondia "nao consegui salvar" a cada
+    // clique (achado ao vivo pelo dono em 09/09).
+    dados.append('csrf_token', "{{ csrf_token() }}");
+    sel.disabled = true;
+    fetch('/admin/atletas/' + sel.dataset.sid + '/sexo', {
+      method: 'POST', body: dados, credentials: 'same-origin'
+    }).then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.ok) {
+          anterior = sel.value;
+          sel.classList.toggle('border-warning', !sel.value);
+          sel.classList.add('border-success');
+          setTimeout(function () { sel.classList.remove('border-success'); }, 1200);
+        } else {
+          sel.value = anterior;
+          alert((j && j.erro) || 'Não consegui salvar.');
+        }
+      })
+      .catch(function () {
+        sel.value = anterior;
+        alert('Não consegui salvar — confira a conexão.');
+      })
+      .finally(function () { sel.disabled = false; });
+  });
+});
+</script>
+
+{% endblock %}

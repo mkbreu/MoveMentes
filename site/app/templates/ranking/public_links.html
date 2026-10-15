@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboards dos Atletas - MoveMentes{% endblock %}
+
+{% block extra_head %}
+{% if token_valid and include_sponsor and sponsor_logo_url %}
+<meta property="og:title" content="Dashboards dos Atletas - {{ cidade }}">
+<meta property="og:description" content="Patrocinador do mês: {{ sponsor_name or 'A definir' }}">
+<meta property="og:type" content="website">
+<meta property="og:image" content="{{ sponsor_logo_url }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Dashboards dos Atletas - {{ cidade }}">
+<meta name="twitter:description" content="Patrocinador do mês: {{ sponsor_name or 'A definir' }}">
+<meta name="twitter:image" content="{{ sponsor_logo_url }}">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h1 class="display-6 mb-0">
+            <i class="fas fa-link text-primary"></i> Dashboards dos Atletas
+        </h1>
+        {% if token_valid and atletas_publicos_url %}
+        <a href="{{ atletas_publicos_url }}" class="btn btn-outline-success">
+            <i class="fas fa-users me-1"></i>Ver todos os atletas
+        </a>
+        {% endif %}
+    </div>
+
+    {% if not token_valid %}
+    <div class="alert alert-danger text-center">
+        {{ error_message or 'Link inválido.' }}
+    </div>
+    {% else %}
+        {% if error_message %}
+        <div class="alert alert-warning text-center">
+            {{ error_message }}
+        </div>
+        {% endif %}
+
+        {# Agradecimento + logo do patrocinador principal #}
+        {% include 'partials/public_top.html' %}
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-8">
+                        <p class="mb-1"><strong>Cidade:</strong> {{ cidade }}</p>
+                        <p class="mb-1"><strong>Período:</strong> {{ month_name }}/{{ selected_year }}</p>
+                        <p class="mb-0"><strong>Patrocinador:</strong> {{ sponsor_name or 'A definir' }}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <form method="get" action="{{ url_for('ranking.public_athletes_links', token=token) }}">
+                            <input type="hidden" name="include_sponsor" value="{{ '1' if include_sponsor else '0' }}">
+                            <label for="monthSelector" class="form-label mb-1">Mês/Ano</label>
+                            <select id="monthSelector" name="period" class="form-select" onchange="this.form.submit()">
+                                {% for opt in month_options %}
+                                <option value="{{ opt.value }}" {% if opt.selected %}selected{% endif %}>
+                                    {{ opt.label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </div>
+                </div>
+
+                {# Mensal / Trimestral / Semestral / Anual (P-137-c, 25/09/2026) #}
+                {% include 'ranking/_abas_publicas.html' %}
+            </div>
+        </div>
+
+        {# Busca única acima de todas as modalidades #}
+        <div class="mb-4">
+            <input class="form-control form-control-lg" id="buscaAtletaUnica" type="search"
+                   placeholder="Buscar atleta pelo nome (todas as modalidades)" autocomplete="off">
+        </div>
+
+        {% for sec in sections %}
+        <div class="card mb-4 secao-esporte">
+            <div class="card-header">
+                <strong>{{ sec.titulo }}</strong>
+                {% if sec.meta %}
+                <span class="text-muted">[META: {{ sec.meta|int }} km]</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <p class="mb-3">
+                    Total atletas: <strong>{{ sec.total_atletas }}</strong>
+                    | Medalhistas: <strong>{{ sec.medalhistas }}</strong>
+                </p>
+
+                {% set atletas = sec.atingiram_meta + sec.nao_atingiram %}
+                {% if atletas %}
+                <div class="list-group">
+                    {% for atleta in atletas %}
+                    <a class="list-group-item list-group-item-action athlete-row" data-athlete-nome="{{ atleta['nome'] }}"
+                       href="{{ url_for('athlete.dashboard', strava_id=atleta['strava_id'], name_key=atleta.get('name_key')) }}">
+                        <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap">
+                            <span class="fw-semibold">{{ loop.index }}. {{ atleta['nome'] }}</span>
+                            <div class="d-flex gap-2 flex-wrap justify-content-end">
+                                <span class="badge bg-primary rounded-pill">
+                                    Mês: {{ "%.1f"|format(atleta['km']) }} km
+                                </span>
+                                <span class="badge bg-success rounded-pill">
+                                    Ano{% if atleta.annual_rank %} #{{ atleta.annual_rank }}{% endif %}:
+                                    {{ "%.1f"|format(atleta.annual_km or 0) }} km
+                                </span>
+                            </div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                <p class="text-muted mb-0 sem-resultado d-none">Nenhum atleta encontrado nesta modalidade.</p>
+                {% else %}
+                <p class="text-muted mb-0">Nenhum atleta disponível nesta modalidade para este período.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+
+        {# Logos dos adicionais + disclaimer + QR + rodapé #}
+        {% include 'partials/public_bottom.html' %}
+    {% endif %}
+</div>
+<script>
+  (function () {
+    const campo = document.getElementById('buscaAtletaUnica');
+    if (!campo) return;
+    const norm = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    campo.addEventListener('input', () => {
+      const termo = norm(campo.value);
+      document.querySelectorAll('.secao-esporte').forEach(secao => {
+        const linhas = secao.querySelectorAll('.athlete-row');
+        let visiveis = 0;
+        linhas.forEach(linha => {
+          const match = !termo || norm(linha.dataset.athleteNome).includes(termo);
+          linha.classList.toggle('d-none', !match);
+          if (match) visiveis++;
+        });
+        const aviso = secao.querySelector('.sem-resultado');
+        if (aviso) aviso.classList.toggle('d-none', !(termo && linhas.length && visiveis === 0));
+      });
+    });
+  })();
+</script>
+{% endblock %}

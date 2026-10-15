@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Acesso — MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 480px;">
+  <h1 class="h4 mb-1"><i class="fas fa-right-to-bracket text-success"></i> Acesso</h1>
+  <p class="text-muted mb-3">{{ nome }}</p>
+
+  {# 1. Entrar: quem já tem conta (atleta, admin, master...) usa a mesma senha de sempre. #}
+  <form method="post" action="{{ url_for('pedidos.entrar_atleta', strava_id=strava_id) }}" class="card shadow-sm mb-3">
+    <div class="card-body">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="mb-3">
+        <label class="form-label" for="identificador">E-mail ou telefone</label>
+        <input class="form-control" id="identificador" name="identificador" required
+               value="{{ form.identificador or '' }}" autocomplete="username">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="senha_entrar">Senha</label>
+        <input class="form-control" id="senha_entrar" name="senha" type="password" required autocomplete="current-password">
+      </div>
+      <button class="btn btn-success w-100">Entrar</button>
+      <div class="text-center mt-2">
+        <a class="small" href="{{ url_for('auth.login') }}#blocoEsqueci">Esqueci a minha senha</a>
+      </div>
+    </div>
+  </form>
+
+  {# 2. Primeiro acesso: telefone conferido, e-mail confirmado, aprovação. #}
+  <div class="text-center mb-2">
+    <a class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" href="#blocoCadastro" role="button"
+       aria-expanded="{{ 'true' if abrir_cadastro else 'false' }}" aria-controls="blocoCadastro">
+      Ainda não tenho acesso
+    </a>
+  </div>
+  <div class="collapse {{ 'show' if abrir_cadastro }}" id="blocoCadastro">
+    <form method="post" class="card shadow-sm"><div class="card-body">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="position:absolute; left:-9999px;" aria-hidden="true">
+        <label>Não preencha <input name="site" tabindex="-1" autocomplete="off"></label>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="telefone">Telefone (WhatsApp)</label>
+        <input class="form-control" id="telefone" name="telefone" inputmode="tel" required
+               value="{{ form.telefone or '' }}" placeholder="(DD) 9XXXX-XXXX">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="email">E-mail</label>
+        <input class="form-control" id="email" name="email" type="email" required value="{{ form.email or '' }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="senha">Senha</label>
+        <input class="form-control" id="senha" name="senha" type="password" minlength="8" required autocomplete="new-password">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="confirma">Repita a senha</label>
+        <input class="form-control" id="confirma" name="confirma" type="password" minlength="8" required autocomplete="new-password">
+      </div>
+      <button class="btn btn-success w-100">Criar acesso</button>
+    </div></form>
+  </div>
+</div>
+{% endblock %}

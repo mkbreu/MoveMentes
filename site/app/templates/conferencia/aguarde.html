@@ -1,0 +1,35 @@
+{% extends "conferencia/base_conferencia.html" %}
+{% block titulo %}Conferindo...{% endblock %}
+{% block cabecalho %}Conferindo seus km...{% endblock %}
+{% block conteudo %}
+
+<div class="card card-grande text-center">
+  <div class="card-body py-5">
+    <div class="spinner-border text-success mb-3" style="width:3rem; height:3rem;" role="status"></div>
+    <p id="mensagem" class="mb-1 fw-bold">Consultando o Strava com calma...</p>
+    <p class="text-muted" style="font-size:1rem;">Isso leva menos de um minuto. Não feche esta página.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  const statusUrl = "{{ url_for('conferencia.status', job_name=job_name) }}";
+  const resultadoUrl = "{{ url_for('conferencia.resultado', city_slug=city_slug, nome_cache=nome_cache) }}";
+  const mensagem = document.getElementById('mensagem');
+  async function acompanhar() {
+    try {
+      const resp = await fetch(statusUrl, {credentials: 'same-origin'});
+      const job = await resp.json();
+      if (job.message) mensagem.textContent = job.message;
+      if (job.stage === 'done') { window.location.href = resultadoUrl; return; }
+      if (job.stage === 'error' || job.stage === 'unknown') {
+        mensagem.textContent = job.message || 'Não deu certo agora. Volte e tente de novo.';
+        return;
+      }
+    } catch (e) { /* rede oscilou: tenta de novo */ }
+    setTimeout(acompanhar, 2000);
+  }
+  acompanhar();
+}());
+</script>
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}{{ cat.titulo }} - MoveMentes{% endblock %}
+
+{#
+  O SEGUNDO NIVEL DO PAINEL  (pedido do dono em 09/08)
+
+  "dentro de mensagens vai ter mais uma tela de cards contendo 4 cards, cada
+  um clicavel". E aqui. O card inteiro e o botao, com NOME CURTO e icone — o
+  texto que explica fica no sumario, que e a pagina feita para explicar.
+
+  Esta tela e a mesma para todos os assuntos: o que muda e a lista, e a lista
+  vem de `app/indice.py`. Por isso ela tambem RESOLVE o vermelho do sumario —
+  todo endereco catalogado passa a ter um `url_for` apontando para ele.
+#}
+
+{% macro cartao(url, nome, icone, cor, extra='', numero=None) -%}
+<div class="col-6 col-md-4 col-xl-3">
+    <a href="{{ url }}" class="card-botao {{ extra }}">
+        <div class="card shadow-sm h-100">
+            <div class="card-body text-center d-flex flex-column">
+                <i class="fas {{ icone }} icone-card text-{{ cor }}"></i>
+                <h6 class="card-title mb-0">{{ nome }}</h6>
+                {% if numero is not none %}
+                <p class="mb-0 mt-auto fw-bold fs-4">{{ numero }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </a>
+</div>
+{%- endmacro %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="Onde estou" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Painel</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ cat.titulo }}</li>
+        </ol>
+    </nav>
+
+    <div class="text-center mb-4">
+        <h1 class="h3 mb-2">
+            <i class="fas {{ cat.icone }} text-{{ cat.cor }}"></i> {{ cat.titulo }}
+        </h1>
+        <p class="text-muted mb-0">{{ cat.descricao }}</p>
+    </div>
+
+    <div class="row g-3 align-items-stretch">
+        {% for tela in cat.telas %}
+            {# Card que abre e da "sem permissão" na cara e pior que card que
+               não aparece: some para quem não pode, aparece para quem pode. #}
+            {% if current_user|attr(tela.nivel or 'pode_administrar') %}
+                {{ cartao(url_for(tela.endpoint), tela.nome, tela.icone, cat.cor,
+                          'tela-orfa' if tela.orfa else '',
+                          metricas.get(tela.endpoint)) }}
+            {% endif %}
+        {% endfor %}
+
+        {# Botao que EXECUTA em vez de abrir tela. Mesma aparência, porque para
+           quem usa é mais uma coisa que se faz aqui; o POST é problema nosso. #}
+        {% for acao in cat.acoes %}
+            {% if current_user|attr(acao.nivel or 'pode_administrar') %}
+            <div class="col-6 col-md-4 col-xl-3">
+                <form method="POST" action="{{ url_for(acao.endpoint) }}" class="h-100"
+                      onsubmit="return confirm('{{ acao.confirmacao }}')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="card-botao border-0 bg-transparent p-0 w-100 text-start">
+                        <div class="card shadow-sm h-100 border-{{ cat.cor }}">
+                            <div class="card-body text-center d-flex flex-column">
+                                <i class="fas {{ acao.icone }} icone-card text-{{ cat.cor }}"></i>
+                                <h6 class="card-title mb-0">{{ acao.nome }}</h6>
+                            </div>
+                        </div>
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <p class="text-center text-muted small mt-4 mb-0">
+        Falta alguma coisa aqui?
+        <a href="{{ url_for('admin.indice_telas') }}">Veja o índice de todas as telas</a>.
+    </p>
+</div>
+{% endblock %}

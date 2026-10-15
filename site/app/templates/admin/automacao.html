@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}Automação — Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-9 mx-auto">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <h4 class="mb-0"><i class="fas fa-robot me-2 text-info"></i>Automação (WAHA)</h4>
+      <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Voltar ao painel
+      </a>
+    </div>
+
+    <p class="text-muted small">
+      O computador da automação (com o WAHA) acessa esta aplicação pela
+      <strong>API de automação</strong> (<code>/api/*</code>), autenticada pelo header
+      <code>X-Automation-Token</code>. O token é gerado aqui, fica no cofre em
+      <code>instance/</code> (fora do banco e fora do git) e identifica a cidade
+      <strong>{{ escopo }}</strong> — a automação não precisa enviar mais nada.
+    </p>
+
+    {% if token_novo %}
+    <div class="card shadow-sm mb-4 border-success">
+      <div class="card-header py-2 bg-success text-white">
+        <strong><i class="fas fa-key me-1"></i>Token gerado — copie agora</strong>
+      </div>
+      <div class="card-body">
+        <p class="small mb-2">
+          Este valor <strong>não será exibido novamente</strong>. Cole na automação
+          (credencial do tipo Header Auth, nome <code>X-Automation-Token</code>).
+          Gerar um novo token substitui este.
+        </p>
+        <div class="input-group">
+          <input type="text" class="form-control font-monospace" id="token-novo"
+                 value="{{ token_novo }}" readonly onclick="this.select();">
+          <button class="btn btn-outline-success" type="button"
+                  onclick="navigator.clipboard.writeText(document.getElementById('token-novo').value); this.innerHTML='Copiado!';">
+            <i class="fas fa-copy me-1"></i>Copiar
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ===== Situação atual ===== #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light">
+        <strong><i class="fas fa-circle-info me-1"></i>Situação atual</strong>
+      </div>
+      <div class="card-body">
+        {% if info.configurado %}
+          <p class="mb-2">
+            <span class="badge bg-success"><i class="fas fa-check me-1"></i>Token configurado</span>
+            {% if info.herdado %}
+            <span class="badge bg-secondary ms-1">herdado da configuração global</span>
+            {% endif %}
+          </p>
+          <ul class="list-unstyled small text-muted mb-3">
+            <li><strong>Impressão digital:</strong> <code>{{ info.impressao }}</code> ({{ info.tamanho }} caracteres)</li>
+            {% if info.atualizado_em_texto %}
+            <li><strong>Atualizado em:</strong> {{ info.atualizado_em_texto }}</li>
+            {% endif %}
+            {% if info.atualizado_por %}
+            <li><strong>Atualizado por:</strong> {{ info.atualizado_por }}</li>
+            {% endif %}
+          </ul>
+        {% else %}
+          <p class="mb-3">
+            <span class="badge bg-warning text-dark"><i class="fas fa-triangle-exclamation me-1"></i>Nenhum token configurado</span>
+            <span class="text-muted small ms-2">A API de automação responde 503 até um token ser gerado.</span>
+          </p>
+        {% endif %}
+        <div class="d-flex flex-wrap gap-2">
+          <form method="POST"
+                {% if info.configurado %}onsubmit="return confirm('Gerar um novo token? O token atual deixa de funcionar e a automação precisará ser atualizada.');"{% endif %}>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="acao" value="gerar">
+            <button type="submit" class="btn btn-sm btn-primary">
+              <i class="fas fa-rotate me-1"></i>{{ 'Rotacionar token' if info.configurado else 'Gerar token' }}
+            </button>
+          </form>
+          {% if info.configurado %}
+          <form method="POST" onsubmit="return confirm('Remover o token? A API de automação desta cidade deixa de aceitar chamadas.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="acao" value="remover">
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+              <i class="fas fa-trash me-1"></i>Remover token
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ===== Endpoints ===== #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light">
+        <strong><i class="fas fa-plug me-1"></i>Endpoints para a automação</strong>
+      </div>
+      <div class="card-body">
+        <p class="small text-muted mb-2">
+          Base pela internet: <code>{{ base_url }}</code> &nbsp;•&nbsp;
+          na rede local a automação pode chamar direto o IP do NAS com o header
+          <code>Host: {{ dominio_do_site }}</code>. Header obrigatório em todas:
+          <code>X-Automation-Token</code>.
+        </p>
+        <div class="table-responsive">
+          <table class="table table-sm small align-middle mb-2">
+            <thead>
+              <tr><th>Rota</th><th>Função</th><th>Resposta</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>GET /api/health</code></td>
+                <td>Checagem antes do fluxo</td>
+                <td><code>status</code> ok/degraded, <code>cidade</code>, <code>banco</code></td>
+              </tr>
+              <tr>
+                <td><code>POST /api/upload</code></td>
+                <td>Envia a conversa (multipart, campo <code>arquivo</code>, .txt ou .zip; opcional <code>periodo=AAAA-MM</code>)</td>
+                <td><code>status</code> success/warning/error e <code>job_id</code></td>
+              </tr>
+              <tr>
+                <td><code>GET /api/upload/&lt;job_id&gt;</code></td>
+                <td>Polling do processamento</td>
+                <td><code>stage</code> (termina em done/error/cancelled), <code>pct</code>, <code>message</code></td>
+              </tr>
+              <tr>
+                <td><code>GET /api/ranking/latest</code></td>
+                <td>Ranking do período (opcional <code>periodo=AAAA-MM</code>)</td>
+                <td><code>texto_whatsapp</code>, <code>ranking</code>, <code>patrocinadores[]</code> com <code>logo_url</code> e <code>legenda_completa</code></td>
+              </tr>
+              <tr>
+                <td><code>GET /api/ranking/annual</code></td>
+                <td>Ranking anual (opcional <code>ano</code>)</td>
+                <td><code>texto_whatsapp</code>, <code>ranking</code></td>
+              </tr>
+              <tr>
+                <td><code>GET /api/waha/sessao</code></td>
+                <td>Nome da sessão desta cidade no WAHA</td>
+                <td><code>sessao</code>, <code>slug</code>, <code>numero_responsavel</code></td>
+              </tr>
+              <tr>
+                <td><code>GET /api/waha/pendentes</code></td>
+                <td>Pedidos de vinculação de WhatsApp na fila</td>
+                <td><code>pendentes[]</code> com <code>id</code>, <code>cidade</code>, <code>sessao</code>, <code>telefone</code></td>
+              </tr>
+              <tr>
+                <td><code>POST /api/waha/marcar</code></td>
+                <td>Confirma o que foi feito com um pedido</td>
+                <td><code>ok</code> — envie <code>id</code>, <code>situacao</code>, <code>codigo</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {% if current_user.is_supremo %}
+        <div class="card border-dark my-4">
+          <div class="card-header py-2 bg-dark text-white">
+            <strong><i class="fas fa-robot me-1"></i>Token do orquestrador (a máquina do WhatsApp)</strong>
+          </div>
+          <div class="card-body">
+            <p class="small text-muted">
+              Diferente do token de cidade: este é da <strong>máquina</strong>, e só alcança a
+              fila de vinculação do WhatsApp — nenhum ranking, nenhum atleta, nenhuma cidade.
+              Existe porque uma cidade que ainda não tem token próprio também precisa vincular
+              o primeiro aparelho, e o pedido dela precisa chegar até a máquina.
+            </p>
+            {% if orquestrador.configurado %}
+            <p class="small mb-2">
+              Configurado em {{ orquestrador.atualizado_em_texto }}
+              (impressão digital <code>{{ orquestrador.impressao }}</code>).
+            </p>
+            {% else %}
+            <p class="small mb-2 text-muted">Ainda não configurado.</p>
+            {% endif %}
+            <div class="d-flex gap-2 flex-wrap">
+              <form method="POST">
+                <input type="hidden" name="acao" value="gerar_orquestrador">
+                <button class="btn btn-sm btn-dark"><i class="fas fa-key me-1"></i>
+                  {{ 'Gerar outro' if orquestrador.configurado else 'Gerar token' }}
+                </button>
+              </form>
+              {% if orquestrador.configurado %}
+              <form method="POST" onsubmit="return confirm('Remover o token do orquestrador? A fila de vinculação deixa de ser consumida.');">
+                <input type="hidden" name="acao" value="remover_orquestrador">
+                <button class="btn btn-sm btn-outline-danger">Remover</button>
+              </form>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+        <div class="alert alert-secondary small mb-0">
+          <strong>Resiliência recomendada na automação</strong> (o DS215j é modesto):
+          Retry on Fail com 3 tentativas, intervalo de 30&nbsp;s e timeout de 120&nbsp;s por chamada;
+          checar <code>/api/health</code> antes de iniciar o fluxo e tratar
+          <code>status=warning</code> do upload (arquivo repetido) como sucesso sem reprocessamento.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Termos de uso — MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 820px;">
+  <h1 class="h3 mb-1">Termos de uso e privacidade</h1>
+  <p class="text-muted">
+    Versão <strong>{{ versao }}</strong>. Esta é a versão em vigor; quem aceitou
+    uma versão anterior aceitou aquela, e ela continua consultável.
+  </p>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white py-3"><strong>O essencial, em poucas linhas</strong></div>
+    <div class="card-body">
+      <ul class="list-unstyled mb-0">
+        {% for titulo, detalhe in resumo %}
+        <li class="mb-2"><strong>{{ titulo }}</strong>
+          <span class="d-block text-muted small">{{ detalhe }}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  {# O texto vem de app/termos.py em Markdown simples. Renderizar Markdown
+     completo exigiria biblioteca nova num NAS de 490 MB; aqui basta respeitar
+     as quebras e destacar os títulos. #}
+  <div class="card shadow-sm mb-4">
+    <div class="card-body" id="textoTermos"></div>
+  </div>
+
+  <script>
+    (function () {
+      var bruto = {{ texto | tojson }};
+      var alvo = document.getElementById('textoTermos');
+      var html = bruto
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/^## (.+)$/gm, '<h2 class="h5 mt-4 mb-2">$1</h2>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>[\s\S]*?<\/li>)(?=\n\n|\n<h2|$)/g, '<ul>$1</ul>')
+        .replace(/\n\n/g, '</p><p>');
+      alvo.innerHTML = '<p>' + html + '</p>';
+    })();
+  </script>
+
+  <p class="text-center">
+    <a href="{{ url_for('adesao.inscrever') }}" class="btn btn-success">
+      <i class="fas fa-user-plus"></i> Quero participar
+    </a>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+      <i class="fas fa-house"></i> Início
+    </a>
+  </p>
+</div>
+{% endblock %}

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MoveMentes{% endblock %}</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/favicon.svg') }}">
+    <link rel="shortcut icon" href="{{ url_for('favicon') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/favicon.svg') }}">
+    {% block extra_head %}{% endblock %}
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light sticky-top shadow-sm" style="background-color: #C9FF6E; z-index: 1030;"> {# CORREÇÃO AQUI: navbar-light #}
+        <div class="container">
+            <a class="navbar-brand fw-semibold" href="{{ url_for('index') }}">
+                <i class="fas fa-running"></i> Move<span class="fw-bold">Mentes</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if current_user.is_authenticated %}
+                        {# 19/09/2026 (item 73): o admin entra no painel — sem este
+                           botao ele so chegava la pelo redirecionamento do login. #}
+                        {% if current_user.pode_administrar %}
+                        <li class="nav-item">
+                            <a class="nav-link fw-bold" href="{{ url_for('admin.dashboard') }}">
+                                <i class="fas fa-gauge-high"></i> Painel
+                            </a>
+                        </li>
+                        {% endif %}
+                        {% if current_user.pode_administrar %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('upload.index') }}">
+                                <i class="fas fa-upload"></i> Upload
+                            </a>
+                        </li>
+                        {% endif %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('ranking.current') }}">
+                                <i class="fas fa-trophy"></i> Ranking
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin.lista_atletas') }}">
+                                <i class="fas fa-users"></i> Atletas
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('config.view_config') }}">
+                                <i class="fas fa-cog"></i> Config
+                            </a>
+                        </li>
+                        {% if current_user.pode_administrar %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin.reviews') }}">
+                                <i class="fas fa-flag"></i> Revis&otilde;es
+                                {% if revisoes_pendentes and revisoes_pendentes > 0 %}
+                                <span class="badge bg-danger rounded-pill">{{ revisoes_pendentes }}</span>
+                                {% endif %}
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin.feedbacks') }}">
+                                <i class="fas fa-comment-dots"></i> Feedback
+                                {% if feedback_novas and feedback_novas > 0 %}
+                                <span class="badge bg-danger rounded-pill">{{ feedback_novas }}</span>
+                                {% endif %}
+                            </a>
+                        </li>
+                        {% endif %}
+                        {# manage_users exige master/aprovador: nao mostrar para 'admin' comum #}
+                        {% if current_user.pode_aprovar %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin.manage_users') }}">
+                                <i class="fas fa-user-shield"></i> Admin
+                            </a>
+                        </li>
+                        {% endif %}
+                        {% if current_user.pode_trocar_cidade and cidades_do_supremo|length > 1 %}
+                        {# Seletor de cidade do master supremo. A escolha vive na SESSAO:
+                           nenhuma tela le cidade de parametro de URL. #}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle fw-bold" href="#" id="cidadeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-city"></i> {{ current_user.cidade_ativa }}
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="cidadeDropdown">
+                                <li><h6 class="dropdown-header">Trabalhar na cidade</h6></li>
+                                {% for c in cidades_do_supremo %}
+                                <li>
+                                  <form method="POST" action="{{ url_for('auth.trocar_cidade_ativa') }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="cidade" value="{{ c }}">
+                                    <button type="submit" class="dropdown-item {% if c == current_user.cidade_ativa %}active{% endif %}">
+                                      {% if c == current_user.cidade_ativa %}<i class="fas fa-check"></i>{% endif %} {{ c }}
+                                    </button>
+                                  </form>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </li>
+                        {% endif %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-user"></i> {{ current_user.nome }}
+                                <small>({{ current_user.rotulo_tipo }})</small>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                                <li><span class="dropdown-item-text small text-muted">
+                                    Cidade: <strong>{{ current_user.cidade_ativa }}</strong></span></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{{ url_for('auth.change_password') }}">
+                                    <i class="fas fa-key"></i> Alterar Senha
+                                </a></li>
+                                {# 20/09/2026 (P-103) #}
+                                <li><a class="dropdown-item" href="{{ url_for('auth.trocar_email') }}">
+                                    <i class="fas fa-envelope"></i> Trocar o meu e-mail
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">
+                                    <i class="fas fa-sign-out-alt"></i> Sair
+                                </a></li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        {# LOGIN NO CABECALHO (P-94, 28/08/2026).
+
+                           A pagina inicial deixou de ser o formulario de login:
+                           virou a porta de entrada publica do projeto. O login
+                           subiu para ca, onde nao ocupa a tela de quem so quer
+                           ver os numeros, e continua a um toque de quem
+                           administra. `auth.login` continua existindo como
+                           pagina propria -- e' para la que os erros voltam. #}
+                        <li class="nav-item d-none d-lg-block">
+                            <form method="POST" action="{{ url_for('auth.login') }}"
+                                  class="d-flex align-items-center gap-2 py-1">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <label class="visually-hidden" for="cab_identifier">E-mail, nome ou telefone</label>
+                                <input class="form-control form-control-sm" style="width: 12rem;"
+                                       type="text" id="cab_identifier" name="identifier"
+                                       placeholder="E-mail, nome ou telefone" autocomplete="username">
+                                <label class="visually-hidden" for="cab_password">Senha</label>
+                                <span class="position-relative">
+                                    <input class="form-control form-control-sm" style="width: 9.5rem; padding-right: 2rem;"
+                                           type="password" id="cab_password" name="password"
+                                           placeholder="Senha" autocomplete="current-password">
+                                    {# Mostrar/ocultar: quem digita senha no celular erra, e errar
+                                       sem poder conferir e' o que faz a pessoa desistir de entrar. #}
+                                    <button type="button" class="btn btn-sm border-0 position-absolute end-0 top-0 px-2 py-1"
+                                            style="background: transparent;" aria-label="Mostrar ou ocultar a senha"
+                                            onclick="var c=document.getElementById('cab_password');
+                                                     var e=this.querySelector('i');
+                                                     if(c.type==='password'){c.type='text';e.className='fas fa-eye-slash';}
+                                                     else{c.type='password';e.className='fas fa-eye';}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </span>
+                                <span class="form-check mb-0 ms-1" title="Continuar conectado neste aparelho">
+                                    <input class="form-check-input" type="checkbox" value="y"
+                                           id="cab_remember" name="remember_me">
+                                    <label class="form-check-label small" for="cab_remember">Lembrar</label>
+                                </span>
+                                <button class="btn btn-sm btn-dark" type="submit" name="submit" value="Entrar">
+                                    <i class="fas fa-right-to-bracket"></i> Entrar
+                                </button>
+                            </form>
+                        </li>
+                        <li class="nav-item d-lg-none">
+                            <a class="nav-link" href="{{ url_for('auth.login') }}">
+                                <i class="fas fa-right-to-bracket"></i> Entrar
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    {% if session.get('modo_atleta') and current_user.is_authenticated %}
+    <div class="text-center small py-1" style="background:#fff3cd; border-bottom:1px solid #ffe69c;">
+      <i class="fas fa-user"></i> Você está como atleta (só leitura).
+      <a href="{{ url_for('auth.login') }}">Entrar como administrador</a>
+    </div>
+    {% endif %}
+
+    <!-- Flash Messages -->
+    <div class="container mt-3">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    {% if category == 'reset_link' %}
+                    <div class="alert alert-info alert-dismissible fade show" role="alert">
+                        <div class="mb-2">
+                            <i class="fas fa-key me-1"></i>Link gerado (válido por 24h). Envie ao usuário via WhatsApp:
+                        </div>
+                        <div class="input-group">
+                            <input type="text" class="form-control" value="{{ message }}" readonly onfocus="this.select()">
+                            <button class="btn btn-success" type="button" onclick="copiarLinkFlash(this)">
+                                <i class="fas fa-copy me-1"></i>Copiar
+                            </button>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Main Content -->
+    <main class="container my-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer style="background-color: #C9FF6E; color: #333;" class="py-4 mt-5">
+        <div class="container text-center">
+            <p class="mb-1">Engekon Engenharia - Todos os direitos reservados ao Eng° Maykon Abreu</p>
+            <p class="mb-0">© 2021&ndash;2026 MoveMentes &middot; Desenvolvido com <i class="fas fa-heart text-danger"></i> para Atletas</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // Copia o conteudo do input ao lado do botao (funciona tambem no celular).
+    function copiarLinkFlash(btn) {
+        var input = btn.closest('.input-group').querySelector('input');
+        function feito() {
+            var original = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check me-1"></i>Copiado!';
+            setTimeout(function () { btn.innerHTML = original; }, 2000);
+        }
+        function fallback() {
+            input.focus();
+            input.select();
+            input.setSelectionRange(0, 99999);
+            try { document.execCommand('copy'); feito(); } catch (e) {}
+        }
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(input.value).then(feito, fallback);
+        } else {
+            fallback();
+        }
+    }
+    </script>
+    <!-- Font Awesome - Já carregado no head -->
+    <!-- jQuery - Não é estritamente necessário se não for usado -->
+    {# <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> #}
+
+    {% if current_user.is_authenticated and current_user.pode_administrar %}
+    <script>
+    // Aviso ao admin: bolinha vermelha na navbar (server-side) + notificação no
+    // Chrome uma vez por sessão quando há revisões/feedback pendentes (só se a
+    // permissão já foi concedida — não incomoda pedindo).
+    (function () {
+      var pend = {{ (revisoes_pendentes|default(0)|int) + (feedback_novas|default(0)|int) }};
+      if (pend <= 0 || !('Notification' in window)) return;
+      if (Notification.permission !== 'granted') return;
+      try {
+        if (sessionStorage.getItem('avisoAdmin') === String(pend)) return;
+        sessionStorage.setItem('avisoAdmin', String(pend));
+        new Notification('MoveMentes', {
+          body: pend + ' item(ns) precisam da sua atenção (revisões de anticheat / feedback).',
+        });
+      } catch (e) {}
+    }());
+    </script>
+    {% endif %}
+
+    <script>
+    // VOLTAR PARA O MESMO LUGAR DEPOIS DE UM CLIQUE (01/10/2026, regra 27).
+    // O servidor devolve o endereço de onde veio o clique (aba do endereço,
+    // mês, busca — app/navegacao.py). O que NÃO viaja no endereço mora aqui:
+    // a aba aberta no navegador e a altura da página. Lembrados na hora do
+    // envio de qualquer formulário POST, restaurados na volta à MESMA tela,
+    // por até 2 minutos. Tela nova não precisa fazer nada para ganhar isto.
+    (function () {
+      var CHAVE = 'voltarAoLugar';
+      function abaAberta() {
+        var a = document.querySelector('.nav-tabs .nav-link.active[data-bs-target], .nav-pills .nav-link.active[data-bs-target]');
+        return a ? a.getAttribute('data-bs-target') : '';
+      }
+      // A aba aberta vai para o endereço (#aba-x): recarregar ou copiar o link
+      // abre na mesma aba.
+      document.addEventListener('shown.bs.tab', function (ev) {
+        var alvo = ev.target && ev.target.getAttribute('data-bs-target');
+        if (alvo && alvo.charAt(0) === '#' && history.replaceState) {
+          history.replaceState(null, '', location.pathname + location.search + alvo);
+        }
+      });
+      document.addEventListener('submit', function (ev) {
+        var f = ev.target;
+        if (!f || (f.method || '').toLowerCase() !== 'post' || ev.defaultPrevented) return;
+        try {
+          sessionStorage.setItem(CHAVE, JSON.stringify({
+            caminho: location.pathname, aba: abaAberta(),
+            y: window.scrollY, quando: Date.now()
+          }));
+        } catch (e) {}
+      });
+      function abrirAba(alvo) {
+        if (!alvo || alvo.charAt(0) !== '#' || !window.bootstrap) return;
+        var b;
+        try { b = document.querySelector('[data-bs-toggle][data-bs-target="' + alvo + '"]'); } catch (e) { return; }
+        if (b) { bootstrap.Tab.getOrCreateInstance(b).show(); }
+      }
+      var salvo = null;
+      try { salvo = JSON.parse(sessionStorage.getItem(CHAVE) || 'null'); sessionStorage.removeItem(CHAVE); } catch (e) {}
+      var fresco = salvo && salvo.caminho === location.pathname && (Date.now() - salvo.quando) < 120000;
+      abrirAba(location.hash || (fresco ? salvo.aba : ''));
+      if (fresco && salvo.y) {
+        // 'instant': o Bootstrap liga a rolagem suave na pagina toda, e a
+        // animacao desde o topo era o que falhava (medido 01/10).
+        window.addEventListener('load', function () {
+          window.scrollTo({ top: salvo.y, behavior: 'instant' });
+        });
+      }
+    })();
+    </script>
+    <script>
+    // O BOTÃO "VOLTAR" LEVA PARA ONDE A PESSOA ESTAVA (01/10/2026, pedido do dono).
+    // Os 26 botões "Voltar" das telas tinham destino fixo no código (8 iam para
+    // o painel): quem chegava a uma tela por outro caminho era jogado no painel.
+    // Cada aba do navegador guarda a trilha das telas visitadas; "Voltar" vai à
+    // tela anterior DIFERENTE da atual (o clique que grava algo volta para a
+    // mesma tela e não conta), com a aba e a altura em que ela foi deixada.
+    // Sem trilha (link aberto de fora), vale o destino escrito no botão.
+    (function () {
+      var CHAVE = 'trilhaDeTelas', MAX = 30;
+      function ler() { try { return JSON.parse(sessionStorage.getItem(CHAVE) || '[]'); } catch (e) { return []; } }
+      function gravar(t) { try { sessionStorage.setItem(CHAVE, JSON.stringify(t.slice(-MAX))); } catch (e) {} }
+      function caminho(u) { return (u || '').split('?')[0]; }
+      function abaAberta() {
+        var a = document.querySelector('.nav-tabs .nav-link.active[data-bs-target], .nav-pills .nav-link.active[data-bs-target]');
+        return a ? a.getAttribute('data-bs-target') : '';
+      }
+      var aqui = location.pathname + location.search;
+      var trilha = ler();
+      var ultimo = trilha[trilha.length - 1];
+      if (ultimo && caminho(ultimo.u) === location.pathname) {
+        ultimo.u = aqui;                       // mesma tela (ex.: depois de um clique): atualiza
+      } else {
+        trilha.push({ u: aqui, y: 0, aba: '' });
+      }
+      gravar(trilha);
+
+      // Ao sair da tela, guarda onde ela foi deixada (altura e aba).
+      window.addEventListener('pagehide', function () {
+        var t = ler(), u = t[t.length - 1];
+        if (u && caminho(u.u) === location.pathname) {
+          u.y = window.scrollY; u.aba = abaAberta(); gravar(t);
+        }
+      });
+
+      // Chegou aqui pelo "Voltar": devolve a altura e a aba em que estava.
+      var veio = null;
+      try { veio = sessionStorage.getItem('voltouPelaTrilha'); sessionStorage.removeItem('voltouPelaTrilha'); } catch (e) {}
+      if (veio === aqui) {
+        var alvo = trilha[trilha.length - 1];
+        if (alvo && alvo.aba && window.bootstrap) {
+          var b = document.querySelector('[data-bs-toggle][data-bs-target="' + alvo.aba + '"]');
+          if (b) { bootstrap.Tab.getOrCreateInstance(b).show(); }
+        }
+        if (alvo && alvo.y) {
+          window.addEventListener('load', function () { window.scrollTo({ top: alvo.y, behavior: 'instant' }); });
+        }
+      }
+
+      function ehVoltar(a) {
+        var txt = (a.textContent || '').replace(/\s+/g, ' ').trim();
+        return /^(←\s*)?voltar\b/i.test(txt) && !/topo/i.test(txt);
+      }
+      document.addEventListener('click', function (ev) {
+        var a = ev.target.closest && ev.target.closest('a[href]');
+        if (!a || !ehVoltar(a) || ev.ctrlKey || ev.metaKey || ev.shiftKey || a.target === '_blank') return;
+        var t = ler();
+        for (var i = t.length - 1; i >= 0; i--) {
+          if (caminho(t[i].u) !== location.pathname) {
+            ev.preventDefault();
+            gravar(t.slice(0, i + 1));
+            try { sessionStorage.setItem('voltouPelaTrilha', t[i].u); } catch (e) {}
+            location.href = t[i].u;
+            return;
+          }
+        }
+        // sem tela anterior nesta aba: segue o destino escrito no botão
+      });
+    })();
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

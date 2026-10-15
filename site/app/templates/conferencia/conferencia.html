@@ -1,0 +1,160 @@
+{% extends "conferencia/base_conferencia.html" %}
+{% block titulo %}Conferir meus km — {{ cidade }}{% endblock %}
+{% block cabecalho %}Confira seus km — {{ cidade }}{% endblock %}
+{% block conteudo %}
+
+<style>
+  .lista-atletas { max-height: 22rem; overflow-y: auto; border: 2px solid #e3e6ea; border-radius: 12px; }
+  .atleta-opcao { display: flex; align-items: center; gap: .8rem; width: 100%; text-align: left;
+                  padding: .7rem 1rem; border: none; border-bottom: 1px solid #eef0f2; background: #fff;
+                  font-size: 1.2rem; cursor: pointer; }
+  .atleta-opcao:last-child { border-bottom: none; }
+  .atleta-opcao:hover, .atleta-opcao:focus { background: #eafbe0; }
+  .atleta-opcao.ativo { background: #C9FF6E; font-weight: 700; }
+  .atleta-opcao .ini { width: 44px; height: 44px; border-radius: 50%; background: #2d6a4f; color: #fff;
+                       display: flex; align-items: center; justify-content: center; font-weight: 700;
+                       flex-shrink: 0; overflow: hidden; }
+  .atleta-opcao .ini img { width: 100%; height: 100%; object-fit: cover; }
+  .atleta-opcao .check { margin-left: auto; color: #2d6a4f; font-size: 1.3rem; display: none; }
+  .atleta-opcao.ativo .check { display: inline; }
+  #semResultado { padding: 1rem; color: #888; }
+</style>
+
+<div class="card card-grande mb-4">
+  <div class="card-body">
+    <p class="mb-1">
+      <i class="fas fa-heart text-danger me-1"></i>
+      Aqui você confere, com calma, se <strong>todas as suas atividades</strong> chegaram ao ranking.
+    </p>
+    <p class="text-muted mb-0" style="font-size:1rem;">
+      O ranking conta apenas as atividades cujo <strong>link foi postado no grupo</strong>.
+      Se alguma ficou de fora, a gente mostra qual foi — aí é só postar o link no grupo. 😉
+    </p>
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('conferencia.conferir', city_slug=city_slug) }}">
+  <input type="hidden" name="atleta" id="atletaEscolhido" required>
+
+  <div class="card card-grande mb-3">
+    <div class="card-body">
+      <div class="passo"><span class="num">1</span> Ache o seu nome</div>
+      <p class="text-muted mb-2" style="font-size:1rem;">
+        Digite o seu nome na caixa <strong>ou</strong> desça a lista e toque nele.
+      </p>
+      <div class="mb-2">
+        <input type="search" class="form-control form-select-lg" id="buscaNome"
+               placeholder="🔎 Digite seu nome aqui" autocomplete="off">
+      </div>
+      <div class="lista-atletas" id="listaAtletas">
+        {% for a in atletas %}
+        <button type="button" class="atleta-opcao" data-sid="{{ a.sid }}"
+                data-nome="{{ a.nome }}" data-meses="{{ a.meses | join(',') }}">
+          <span class="ini">
+            {% if a.foto %}<img src="{{ a.foto }}" alt="" onerror="this.remove()">{% else %}{{ a.nome[0]|upper }}{% endif %}
+          </span>
+          <span class="nome">{{ a.nome }}</span>
+          <i class="fas fa-check-circle check"></i>
+        </button>
+        {% endfor %}
+        <div id="semResultado" style="display:none;">
+          Nenhum nome encontrado. Confira se digitou certo, ou desça a lista.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-grande mb-3" id="cardMes" style="display:none;">
+    <div class="card-body">
+      <div class="passo"><span class="num">2</span> Escolha o mês</div>
+      <select class="form-select form-select-lg" name="periodo" id="seletorMes" required>
+        <option value="{{ mes_atual }}" selected>Mês atual</option>
+      </select>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-success btn-conferir w-100" id="btnConferir" disabled>
+    <i class="fas fa-magnifying-glass me-2"></i>Conferir meus km
+  </button>
+</form>
+
+<script>
+(function () {
+  const NOMES_MES = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const mesAtual = "{{ mes_atual }}";
+  const busca = document.getElementById('buscaNome');
+  const lista = document.getElementById('listaAtletas');
+  const opcoes = Array.from(lista.querySelectorAll('.atleta-opcao'));
+  const semResultado = document.getElementById('semResultado');
+  const inputEscolhido = document.getElementById('atletaEscolhido');
+  const cardMes = document.getElementById('cardMes');
+  const seletorMes = document.getElementById('seletorMes');
+  const btnConferir = document.getElementById('btnConferir');
+
+  function semAcento(txt) {
+    return (txt || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  }
+
+  function filtrar() {
+    const termo = semAcento(busca.value.trim());
+    let visiveis = 0;
+    opcoes.forEach(function (op) {
+      const casa = !termo || semAcento(op.dataset.nome).includes(termo);
+      op.style.display = casa ? '' : 'none';
+      if (casa) visiveis += 1;
+    });
+    semResultado.style.display = visiveis ? 'none' : '';
+  }
+
+  function rotuloMes(valor) {
+    const partes = valor.split('-');
+    const nome = NOMES_MES[parseInt(partes[1], 10)] || partes[1];
+    return valor === mesAtual ? (nome + '/' + partes[0] + ' (mês atual)') : (nome + '/' + partes[0]);
+  }
+
+  function escolher(op) {
+    opcoes.forEach(function (o) { o.classList.remove('ativo'); });
+    op.classList.add('ativo');
+    inputEscolhido.value = op.dataset.sid;
+
+    const meses = (op.dataset.meses ? op.dataset.meses.split(',') : [mesAtual]);
+    seletorMes.innerHTML = '';
+    meses.forEach(function (m) {
+      if (!m) return;
+      const el = document.createElement('option');
+      el.value = m;
+      el.textContent = rotuloMes(m);
+      if (m === mesAtual) el.selected = true;
+      seletorMes.appendChild(el);
+    });
+    cardMes.style.display = '';
+    btnConferir.disabled = false;
+    cardMes.scrollIntoView({behavior: 'smooth', block: 'center'});
+  }
+
+  busca.addEventListener('input', filtrar);
+  opcoes.forEach(function (op) {
+    op.addEventListener('click', function () { escolher(op); });
+  });
+
+  // Chegou pelo link do aviso (?atleta=&periodo=): abre pronto para conferir.
+  const preAtleta = "{{ sel_atleta|default('') }}";
+  const prePeriodo = "{{ sel_periodo|default('') }}";
+  if (preAtleta) {
+    const alvo = opcoes.find(function (o) { return o.dataset.sid === preAtleta; });
+    if (alvo) {
+      escolher(alvo);
+      if (prePeriodo) {
+        // O mes so entra se a pessoa realmente tiver atividade nele; senao a
+        // lista fica com o mes atual, que e o comportamento normal da tela.
+        const tem = Array.prototype.some.call(seletorMes.options,
+          function (o) { return o.value === prePeriodo; });
+        if (tem) seletorMes.value = prePeriodo;
+      }
+      alvo.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+  }
+}());
+</script>
+{% endblock %}

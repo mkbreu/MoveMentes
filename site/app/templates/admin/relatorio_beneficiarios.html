@@ -1,0 +1,43 @@
+{% extends "admin/_relatorio_base.html" %}
+{% block title %}Lista de beneficiários — MoveMentes{% endblock %}
+{% block titulo_relatorio %}Lista de beneficiários{% endblock %}
+
+{% block corpo %}
+<p class="small">
+  Relação das pessoas beneficiadas pelo projeto no período, com a produção de
+  cada uma. <strong>{{ linhas|length }}</strong> pessoas, somando
+  <strong>{{ total_km }} km</strong>.
+</p>
+
+<table class="table table-sm">
+  <thead>
+    <tr>
+      <th style="width:2.5rem;">#</th><th>Beneficiário</th>
+      <th class="rel-num">Km</th><th class="rel-num">Atividades</th>
+      <th class="rel-num">Participa desde</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for l in linhas %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ l.nome }}</td>
+      <td class="rel-num">{{ l.km }}</td>
+      <td class="rel-num">{{ l.atividades }}</td>
+      <td class="rel-num">{{ l.desde.strftime('%m/%Y') if l.desde else '—' }}</td>
+    </tr>
+    {% endfor %}
+    {% if not linhas %}
+    <tr><td colspan="5" class="text-center text-muted py-4">
+      Nenhuma atividade registrada no período.</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+
+<p class="rel-meta mt-3">
+  Este documento não contém telefone, e-mail nem informação de saúde: são dados
+  que não saem do projeto. Quem consta como <em>&ldquo;Participante
+  reservado&rdquo;</em> pediu para não ter o nome divulgado — a produção dele
+  continua contada.
+</p>
+{% endblock %}

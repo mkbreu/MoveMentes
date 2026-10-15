@@ -1,0 +1,26 @@
+{# ABAS DO RANKING (P-137-c, 25/09/2026): as mesmas no mensal e nos períodos.
+   Antes só existiam dentro da tela de período, que não tinha porta de entrada:
+   quem abria o ranking não via aba nenhuma. Pede `periodo` e `premiado`. #}
+<ul class="nav nav-tabs mb-3">
+  {% for chave, nome in [('mes', 'Mensal'), ('trimestre', 'Trimestral'), ('semestre', 'Semestral'), ('ano', 'Anual')] %}
+  <li class="nav-item">
+    <a class="nav-link text-nowrap px-2 px-sm-3 {% if periodo == chave %}active{% endif %}"
+       {% if periodo == chave %}aria-current="page"{% endif %}
+       href="{{ url_for('ranking.current') if chave == 'mes' else url_for('ranking.periodo', periodo=chave) }}">
+      {{ nome }}
+      {% if premiado == chave %}<i class="fas fa-trophy text-warning ms-1" title="período com troféu"></i>{% endif %}
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% if periodo == 'mes' and trofeu and current_user.pode_administrar %}
+<p class="small text-muted mb-3">
+  <i class="fas fa-trophy text-warning me-1"></i>
+  {% if trofeu.premiado %}
+  Troféu: <strong>{{ {'trimestre': 'trimestral', 'semestre': 'semestral', 'ano': 'anual'}[trofeu.premiado] }}</strong>{% if trofeu.frequencia %} · vai ao grupo {{ trofeu.frequencia }}{% endif %}
+  {% else %}
+  Troféu: <strong>nenhum</strong> · o ranking de período não vai ao grupo
+  {% endif %}
+  · <a href="{{ url_for('ranking.periodo', periodo=trofeu.premiado or 'trimestre') }}">configurar</a>
+</p>
+{% endif %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} — MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container py-5 text-center" style="max-width: 520px;">
+  <h1 class="h4 mb-3">{{ titulo }}</h1>
+  <p class="mb-4">{{ texto }}</p>
+  {% if botao and destino %}
+  <a class="btn btn-success" href="{{ destino }}">{{ botao }}</a>
+  {% endif %}
+</div>
+{% endblock %}

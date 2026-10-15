@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Registro - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-user-plus"></i> Criar Conta</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('auth.register') }}">
+                    {{ form.hidden_tag() }}
+
+                    <div class="mb-3">
+                        {{ form.nome.label(class="form-label") }}
+                        {{ form.nome(class="form-control", placeholder="Seu nome completo") }}
+                        {% if form.nome.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.nome.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.email.label(class="form-label") }}
+                        {{ form.email(class="form-control", placeholder="seu@email.com") }}
+                        {% if form.email.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.email.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.telefone.label(class="form-label") }}
+                        {{ form.telefone(class="form-control", placeholder="(DD) 9XXXX-XXXX") }}
+                        <div class="form-text">Mesmo número do WhatsApp. Também serve para entrar no lugar do e-mail.</div>
+                        {% if form.telefone.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.telefone.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.cidade.label(class="form-label") }}
+                        {{ form.cidade(class="form-select") }}
+                        {% if form.cidade.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.cidade.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    {# NOVIDADE: Campo de senha com toggle #}
+                    <div class="mb-3 password-group">
+                        {{ form.password.label(class="form-label") }}
+                        {{ form.password(class="form-control", placeholder="Mínimo 6 caracteres", id="register-password") }} {# Adicionado ID #}
+                        <span class="toggle-password" onclick="togglePasswordVisibility('register-password')"> {# Passa o ID do campo #}
+                            <i class="fas fa-eye"></i>
+                        </span>
+                        {% if form.password.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.password.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    {# NOVIDADE: Campo de confirmação de senha com toggle #}
+                    <div class="mb-3 password-group">
+                        {{ form.confirm_password.label(class="form-label") }}
+                        {{ form.confirm_password(class="form-control", placeholder="Repita a senha", id="register-confirm-password") }} {# Adicionado ID #}
+                        <span class="toggle-password" onclick="togglePasswordVisibility('register-confirm-password')"> {# Passa o ID do campo #}
+                            <i class="fas fa-eye"></i>
+                        </span>
+                        {% if form.confirm_password.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.confirm_password.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+
+                <hr>
+
+                <div class="text-center">
+                    <p class="mb-0">Já tem uma conta?
+                        <a href="{{ url_for('auth.login') }}">Faça login</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{# Como o togglePasswordVisibility já está em base.html, não precisamos de um bloco extra_js aqui,
+   mas é essencial que o script.js (carregado via base.html) contenha a função genérica. #}
+{% endblock %}

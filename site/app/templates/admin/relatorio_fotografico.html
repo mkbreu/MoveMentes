@@ -1,0 +1,62 @@
+{% extends "admin/_relatorio_base.html" %}
+{% block title %}Relatório fotográfico — MoveMentes{% endblock %}
+{% block titulo_relatorio %}Relatório fotográfico{% endblock %}
+
+{% block corpo %}
+<p class="small">
+  Registro visual das atividades do projeto no período.
+  <strong>Só entram aqui as imagens cuja autorização de uso foi confirmada.</strong>
+</p>
+
+{% if sem_consentimento %}
+<div class="alert alert-warning small rel-nao-imprime">
+  <strong>{{ sem_consentimento }} mídia(s) ficaram de fora</strong> por não terem
+  a autorização de imagem confirmada. Confirme na tela de execução para que
+  entrem no relatório.
+</div>
+{% endif %}
+
+{% for g in grupos_de_fotos %}
+<h2 class="h6 mt-3 mb-2">{{ g.titulo }}</h2>
+<div class="row g-3">
+  {% for f in g.fotos %}
+  <div class="col-12 col-md-6">
+    <div class="card">
+      <img src="{{ url_for('execucao.arquivo_da_midia', mid=f.id) }}"
+           alt="{{ f.titulo }}" style="width:100%; height:auto; border-radius:6px 6px 0 0;">
+      <div class="card-body py-2">
+        <strong class="small">{{ f.titulo }}</strong>
+        <span class="d-block rel-meta">
+          {{ f.data.strftime('%d/%m/%Y') if f.data else '' }}
+        </span>
+        {% if f.descricao %}<span class="d-block small">{{ f.descricao }}</span>{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+{% if not fotos %}
+<p class="text-muted small">Nenhuma foto com autorização confirmada no período.</p>
+{% endif %}
+
+{% if videos %}
+<h2 class="h6 mt-4 mb-2">Vídeos</h2>
+<table class="table table-sm">
+  <thead><tr><th>Data</th><th>Título</th><th>Endereço</th></tr></thead>
+  <tbody>
+    {% for v in videos %}
+    <tr>
+      <td>{{ v.data.strftime('%d/%m/%Y') if v.data else '—' }}</td>
+      <td>{{ v.titulo }}</td>
+      <td class="small">{{ v.link_youtube }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="rel-meta">
+  Os vídeos ficam hospedados no YouTube: o servidor do projeto é um equipamento
+  doméstico e não serve vídeo.
+</p>
+{% endif %}
+{% endblock %}

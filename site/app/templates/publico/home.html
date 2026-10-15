@@ -1,0 +1,686 @@
+{% extends "base.html" %}
+{% block title %}MoveMentes — mover o corpo para mover a mente{% endblock %}
+
+{# Km INTEIRO, com ponto de milhar. O arredondamento ja veio pronto de
+   `app/consolidado.py`: aqui so se formata, senao a tabela deixaria de fechar. #}
+{% macro km(v) -%}
+{{ '{:,.0f}'.format(v or 0).replace(',', '.') }}
+{%- endmacro %}
+
+{% macro num(v) -%}
+{{ '{:,}'.format(v or 0).replace(',', '.') }}
+{%- endmacro %}
+
+{% block content %}
+<style>
+  /* A porta de entrada do projeto. Estilo local de propósito: é a única tela
+     com esta cara, e espalhar isto no style.css afetaria as 60 telas internas. */
+  .mm-capa {
+    background: linear-gradient(135deg, #1c2b13 0%, #2f4a1f 55%, #4a7328 100%);
+    color: #fff;
+    border-radius: 16px;
+    padding: 2.6rem 1.5rem 2.2rem;
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+  .mm-marca {
+    font-size: clamp(2.2rem, 7vw, 3.6rem);
+    font-weight: 700;
+    letter-spacing: -.02em;
+    line-height: 1.05;
+    margin-bottom: .35rem;
+  }
+  .mm-marca span { color: #C9FF6E; }
+  .mm-frase { font-size: clamp(1rem, 2.6vw, 1.3rem); opacity: .95; margin-bottom: .35rem; }
+  .mm-sub { font-size: .95rem; opacity: .78; max-width: 46rem; margin: 0 auto; }
+
+  /* CADA QUADRO PEGA A LARGURA QUE O NÚMERO DELE PRECISA (28/08/2026).
+     Antes eram quatro colunas IGUAIS (`repeat(auto-fit, minmax(140px, 1fr))`):
+     "188.131" estourava a caixa em tela estreita enquanto "95" desperdiçava
+     metade da dele. Com `flex: 1 1 auto` a caixa se dimensiona pelo conteúdo —
+     a dos quilômetros fica larga, a de pessoas fica estreita, e nenhuma corta.
+     `white-space: nowrap` garante que o número nunca quebre no meio. */
+  .mm-destaques { display: flex; flex-wrap: wrap; gap: .9rem; margin-top: 1.9rem; justify-content: center; }
+  .mm-destaque { background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.16);
+                 border-radius: 12px; padding: .9rem 1.1rem; flex: 1 1 auto; min-width: 0; }
+  .mm-destaque b { display: block; font-size: clamp(1.35rem, 4.2vw, 2.1rem); line-height: 1.1;
+                   color: #C9FF6E; white-space: nowrap; }
+  .mm-destaque small { display: block; text-transform: uppercase; letter-spacing: .06em; font-size: .68rem; opacity: .8; margin-top: .25rem; }
+
+  /* Em tela bem estreita, duas por linha em vez de quatro apertadas. */
+  @media (max-width: 420px) {
+    .mm-destaque { flex: 1 1 calc(50% - .9rem); }
+  }
+
+  .mm-tabela { border-radius: 14px; overflow: hidden; }
+  .mm-tabela table { margin-bottom: 0; }
+  .mm-tabela thead th { background: #f1f4ec; font-weight: 600; border-bottom: 2px solid #dde3d3; white-space: nowrap; }
+  .mm-tabela td, .mm-tabela th { vertical-align: middle; }
+  .mm-tabela tbody tr.mm-ano-corrente { background: #fbfff2; }
+  .mm-tabela tr.mm-mes td { background: #f7fbef; font-style: italic; color: #4a5c3a; border-top: 1px dashed #cfd9c0; }
+  .mm-tabela tfoot td { background: #1c2b13; color: #fff; font-weight: 700; font-size: 1.02rem; border-top: 0; }
+  .mm-tabela tfoot td span.mm-un { font-weight: 400; opacity: .7; font-size: .8rem; }
+  .mm-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* TÍTULO DE SEÇÃO EM CAIXA ALTA (pedido do dono, 28/08). Feito no CSS, não
+     escrevendo "Como isto começou" no HTML: assim o texto-fonte continua
+     legível, o acento fica certo, e mudar de ideia é uma linha. */
+  .mm-secao-titulo { font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .mm-cabecalho-card strong { text-transform: uppercase; letter-spacing: .03em; }
+  .mm-tabela thead th, .mm-tabela tfoot td { text-transform: uppercase; letter-spacing: .03em; }
+  .mm-classif .card-header { text-transform: uppercase; letter-spacing: .03em; }
+  .mm-credito { border-left: 3px solid #C9FF6E; padding-left: .9rem; margin-bottom: .8rem; }
+
+  /* O Bootstrap aqui é o 5.1.3: `bg-success-subtle` e `text-success-emphasis`
+     só existem do 5.3 em diante, e a badge saía branca no branco. */
+  .mm-cidade { border-radius: 999px; padding: .45rem 1rem; font-size: .85rem; font-weight: 500;
+               text-decoration: none; display: inline-block; }
+  .mm-cidade:hover { filter: brightness(0.96); }
+  .mm-cidade-ativa { background: #eaf7d9; color: #2f4a1f; border: 1px solid #c6e39b; }
+  .mm-cidade-espera { background: #f1f1f1; color: #6c757d; border: 1px solid #dcdcdc; }
+
+  .mm-pos { width: 2.4rem; text-align: center; font-weight: 700; color: #6c757d; font-variant-numeric: tabular-nums; }
+  .mm-pos-1 { color: #b8860b; } .mm-pos-2 { color: #7d8590; } .mm-pos-3 { color: #a0522d; }
+  .mm-classif .card-header { background: #f1f4ec; font-weight: 600; }
+  .mm-classif table { margin-bottom: 0; font-size: .93rem; }
+  .mm-classif td { vertical-align: middle; }
+  .mm-classif a.mm-atleta { color: #2f4a1f; text-decoration: none; border-bottom: 1px dotted #a8c98a; }
+  .mm-classif a.mm-atleta:hover { color: #4a7328; border-bottom-style: solid; }
+
+  .mm-patroc td { vertical-align: middle; }
+  .mm-patroc .mm-logo { width: 92px; height: 46px; object-fit: contain; background: #fff;
+                        border: 1px solid #e6e6e6; border-radius: 6px; padding: 3px; }
+  .mm-patroc .mm-sem-logo { width: 92px; height: 46px; display: inline-flex; align-items: center;
+                            justify-content: center; border: 1px dashed #dcdcdc; border-radius: 6px;
+                            color: #b5b5b5; font-size: .7rem; }
+  .mm-apoio-qr { width: 190px; height: auto; border-radius: 10px; border: 1px solid #e6e6e6;
+                 background: #fff; padding: 6px; }
+  .mm-gestor { background: #f7fbef; border: 1px solid #dde8cc; border-radius: 12px; padding: 1rem 1.1rem; }
+</style>
+
+{# Quem já está logado não perde o atalho: a porta de entrada é pública, mas
+   quem administra chega ao painel daqui mesmo, sem voltar pelo menu. #}
+{% if current_user.is_authenticated %}
+<div class="alert alert-light border d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <span>Olá, <strong>{{ current_user.nome }}</strong>.</span>
+  <span class="d-flex gap-2">
+    {% if current_user.pode_administrar %}
+      <a class="btn btn-sm btn-success" href="{{ url_for('admin.dashboard') }}">
+        <i class="fas fa-gauge"></i> Painel
+      </a>
+    {% endif %}
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('ranking.current') }}">
+      <i class="fas fa-trophy"></i> Ranking do mês
+    </a>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('welcome_page') }}">
+      <i class="fas fa-house"></i> Meus atalhos
+    </a>
+  </span>
+</div>
+{% endif %}
+
+{# ==================== CAPA ==================== #}
+<div class="mm-capa">
+  <div class="mm-marca">Move<span>Mentes</span></div>
+  <p class="mm-frase mb-1">{{ texto('home.frase', 'Mover o corpo para mover a mente.') }}</p>
+  <p class="mm-sub">
+    {{ texto('home.apresentacao', 'Atividade física e educação nutricional para o bem-estar da comunidade. Gratuito, aberto a qualquer pessoa da sua respectiva cidade.') }} Em
+    <strong>Palmeirópolis</strong> o grupo funciona sem parar desde
+    {{ tabela.anos[0].ano if tabela.anos else '2021' }}.
+  </p>
+
+  <div class="mm-destaques">
+    <div class="mm-destaque"><b>{{ km(tabela.total.total) }}</b><small>quilômetros</small></div>
+    <div class="mm-destaque"><b>{{ num(tabela.total.atividades) }}</b><small>atividades</small></div>
+    <div class="mm-destaque"><b>{{ num(foto.total_atletas) }}</b><small>pessoas</small></div>
+    {# QUEM SE MEXE, EM NUMERO (09/09/2026). Contagem AGREGADA: ninguem e'
+       identificado por sexo em pagina publica -- isto e' dado de alcance do
+       projeto, para patrocinador e prestacao de contas.
+       Aparece so' quando ha informacao suficiente, e em PORCENTAGEM: o dado e'
+       preenchido a mao, sempre havera quem falte, e somar duas partes que nao
+       dao o todo faria o leitor achar que a conta esta errada. #}
+    {% set ps = foto.por_sexo if foto.por_sexo else none %}
+    {% if ps and ps.pct_conhecido >= 30 %}
+    <div class="mm-destaque" title="de {{ ps.pct_conhecido }}% das atividades sabemos quem praticou">
+      <b>{{ ps.pct_mulheres }}%</b><small>delas, mulheres</small>
+    </div>
+    {% endif %}
+    <div class="mm-destaque"><b>{{ foto.desde[3:] if foto.desde else '—' }}</b><small>desde</small></div>
+  </div>
+</div>
+
+{# ==================== OS TRÊS CAMINHOS ==================== #}
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-4">
+    <a class="card-botao" href="{{ url_for('ranking.consolidado_publico') }}">
+      <div class="card shadow-sm text-center">
+        <div class="card-body py-4 mm-cabecalho-card">
+          <i class="fas fa-chart-line icone-card text-success"></i>
+          <strong>Números do projeto</strong>
+          <p class="text-muted small mb-0 mt-1">Por período, por cidade e por pessoa</p>
+        </div>
+      </div>
+    </a>
+  </div>
+  <div class="col-12 col-md-4">
+    <a class="card-botao" href="{{ url_for('conferencia.escolher_cidade') }}">
+      <div class="card shadow-sm text-center">
+        <div class="card-body py-4 mm-cabecalho-card">
+          <i class="fas fa-magnifying-glass icone-card text-success"></i>
+          <strong>Conferir meus links</strong>
+          <p class="text-muted small mb-0 mt-1">Veja se algum treino seu ficou de fora</p>
+        </div>
+      </div>
+    </a>
+  </div>
+  <div class="col-12 col-md-4">
+    <a class="card-botao" href="{{ url_for('adesao.inscrever') }}">
+      <div class="card shadow-sm text-center">
+        <div class="card-body py-4 mm-cabecalho-card">
+          <i class="fas fa-user-plus icone-card text-success"></i>
+          <strong>Quero participar</strong>
+          <p class="text-muted small mb-0 mt-1">Aberto a qualquer pessoa da cidade, sem custo</p>
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
+
+{# ==================== A TABELA ==================== #}
+<div class="card shadow-sm mm-tabela mb-2">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
+    <span class="mm-secao-titulo">
+      <i class="fas fa-table-list text-success"></i> {{ texto('home.titulo_tabela', 'Quilômetros do projeto, ano a ano') }}
+    </span>
+    <span class="text-muted small">atualizado em {{ foto.atualizada_em }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead>
+        <tr>
+          <th scope="col">Ano</th>
+          {% for chave, rotulo in tabela.modalidades %}
+            <th scope="col" class="mm-num">{{ rotulo }}</th>
+          {% endfor %}
+          <th scope="col" class="mm-num">Total do ano</th>
+          <th scope="col" class="mm-num d-none d-md-table-cell">Atividades</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in tabela.anos %}
+        <tr class="{{ 'mm-ano-corrente' if linha.corrente else '' }}">
+          <th scope="row" class="fw-normal">
+            {{ linha.ano }}
+            {% if linha.corrente %}<span class="badge bg-success ms-1">em andamento</span>{% endif %}
+          </th>
+          {% for chave, rotulo in tabela.modalidades %}
+            <td class="mm-num">{{ km(linha[chave]) }}</td>
+          {% endfor %}
+          <td class="mm-num fw-semibold">{{ km(linha.total) }}</td>
+          <td class="mm-num d-none d-md-table-cell text-muted">{{ num(linha.atividades) }}</td>
+        </tr>
+        {% endfor %}
+
+        <tr class="mm-mes">
+          <th scope="row" class="fw-normal fst-italic">
+            {{ tabela.mes_corrente.rotulo }}
+            <span class="d-block text-muted" style="font-size:.75rem; font-style: normal;">
+              mês corrente, já somado na linha de {{ tabela.anos[-1].ano if tabela.anos else '' }}
+            </span>
+          </th>
+          {% for chave, rotulo in tabela.modalidades %}
+            <td class="mm-num">{{ km(tabela.mes_corrente[chave]) }}</td>
+          {% endfor %}
+          <td class="mm-num fw-semibold">{{ km(tabela.mes_corrente.total) }}</td>
+          <td class="mm-num d-none d-md-table-cell text-muted">{{ num(tabela.mes_corrente.atividades) }}</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td>Total do projeto</td>
+          {% for chave, rotulo in tabela.modalidades %}
+            <td class="mm-num">{{ km(tabela.total[chave]) }} <span class="mm-un">km</span></td>
+          {% endfor %}
+          <td class="mm-num">{{ km(tabela.total.total) }} <span class="mm-un">km</span></td>
+          <td class="mm-num d-none d-md-table-cell">{{ num(tabela.total.atividades) }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+<p class="text-muted small mb-4">
+  Cada ano é a soma das suas modalidades, e o total é a soma dos anos — a tabela
+  fecha nos dois sentidos. Não entram atividades removidas por revisão nem as
+  recusadas na conferência.
+  <a href="{{ url_for('ranking.consolidado_publico') }}">Ver por período, por cidade e por pessoa</a>.
+</p>
+
+{# ==================== HISTÓRIA ==================== #}
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <p class="mm-secao-titulo mb-3 h5">
+      <i class="fas fa-book-open text-success"></i> {{ texto('home.titulo_historia', 'Como isto começou') }}
+    </p>
+    <p>
+      Começou num grupo de WhatsApp de Palmeirópolis, em 2021, no meio da
+      pandemia: as pessoas precisavam se movimentar, mas ficaram sem a turma
+      de sempre para treinar junto. O grupo nasceu para isso — postar o link
+      da caminhada, da corrida ou do pedal do dia, para um ver o outro se
+      movimentando. Alguém somava os quilômetros à mão, todo mês, montava a
+      planilha e publicava o ranking, e o ranking puxava mais gente para
+      dentro. A ideia pegou e nunca mais parou.
+    </p>
+    <p class="mb-4">
+      Em 2026 essa contagem virou sistema. O que antes levava uma tarde de
+      planilha hoje é lido, somado e publicado sozinho — mas a ideia continua a
+      mesma: quem se movimenta aparece, e quem aparece é reconhecido.
+    </p>
+
+{% include 'publico/_creditos.html' ignore missing %}
+
+    <p class="text-muted small mb-0 mt-3">
+      <strong>Este projeto é de quem participa dele — não tem dono.</strong>
+      Quem está à frente hoje — administrando, correndo atrás de patrocínio,
+      mantendo o site de pé — são voluntários, não donos: o grupo existe desde
+      2021 e é de todos que participam, e de quem mais quiser entrar. Os
+      quilômetros da tabela acima são de {{ num(foto.total_atletas) }} pessoas
+      reais, uma atividade por vez.
+    </p>
+  </div>
+</div>
+
+{# ==================== CIDADES ==================== #}
+{# P-121 (28/08/2026): a secao sobe para ANTES de "Quilometros por pessoa",
+   e cada cidade vira botao. Sem AJAX/refazer a tabela na hora -- a foto do
+   dia e' cache de 1x/dia (NAS de 490 MB), entao "clicar numa cidade" leva
+   para a pagina que JA existe e ja funciona por cidade
+   (`ranking.consolidado_publico`), em vez de multiplicar o custo do cache
+   por cidade. "Todas" e' o estado de hoje: o consolidado sem filtro. #}
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <p class="mm-secao-titulo mb-2 h5">
+      <i class="fas fa-city text-success"></i> {{ texto('home.titulo_cidades', 'Onde o projeto acontece') }}
+    </p>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="mm-cidade mm-cidade-ativa" href="{{ url_for('ranking.consolidado_publico') }}">
+        Todas
+      </a>
+      {% for c in foto.cidades_com_dado %}
+        <a class="mm-cidade mm-cidade-ativa"
+           href="{{ url_for('ranking.consolidado_publico', city_slug=c.slug) }}">
+          {{ c.nome }} — em atividade
+        </a>
+      {% endfor %}
+      {% for c in foto.cidades_em_implantacao %}
+        <a class="mm-cidade mm-cidade-espera"
+           href="{{ url_for('ranking.consolidado_publico', city_slug=c.slug) }}">
+          {{ c.nome }} — em implantação
+        </a>
+      {% endfor %}
+    </div>
+    <p class="text-muted small mb-0 mt-2">
+      O modelo é de circuito: cada cidade mantém o seu grupo e a sua identidade,
+      e soma quilômetros ao consolidado. Clique numa cidade para ver só os
+      números dela.
+    </p>
+  </div>
+</div>
+
+{# ==================== QUILÔMETROS POR PESSOA ==================== #}
+<h2 class="h5 mm-secao-titulo mb-1 mt-4">
+  <i class="fas fa-person-running text-success"></i> {{ texto('home.titulo_por_pessoa', 'Quilômetros por pessoa') }}
+</h2>
+<p class="text-muted small mb-2">
+  A primeira lista soma tudo; as outras separam por modalidade — quem faz as
+  duas coisas aparece nas duas, e elas não se somam entre si. Clique num nome
+  para abrir a página da pessoa.
+  <a href="{{ url_for('ranking.consolidado_publico') }}">A lista inteira está aqui</a>.
+</p>
+
+{# Filtro de período (P-122, 28/08/2026): 'tudo' vem do cache do dia;
+   qualquer outro periodo e' calculado na hora, so' para esta secao. #}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  {% for chave, rotulo in [('tudo', 'Desde o começo'), ('ano', 'Este ano'),
+                           ('semestre', 'Este semestre'), ('trimestre', 'Este trimestre'),
+                           ('mes', 'Este mês')] %}
+    <a class="btn btn-sm {{ 'btn-success' if periodo_pessoas == chave else 'btn-outline-secondary' }}"
+       href="{{ url_for('index') }}?periodo_pessoas={{ chave }}#pessoa">
+      {{ rotulo }}
+    </a>
+  {% endfor %}
+</div>
+
+<div class="row g-3 mb-4" id="pessoa">
+  {% for c in foto.classificacoes %}
+  <div class="col-12 col-lg-6">
+    <div class="card shadow-sm h-100 mm-classif">
+      <div class="card-header py-2">{{ c.titulo }}</div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover">
+          <tbody>
+            {% for l in c.linhas %}
+            <tr>
+              <td class="mm-pos mm-pos-{{ l.posicao }}">{{ l.posicao }}</td>
+              <td>
+                {% if l.strava_id %}
+                  <a class="mm-atleta" href="{{ url_for('athlete.dashboard', strava_id=l.strava_id) }}">{{ l.nome }}</a>
+                {% else %}
+                  {{ l.nome }}
+                {% endif %}
+                {% if l.tipo_bicicleta %}<span class="badge bg-secondary ms-1 text-uppercase" style="font-size:.62rem;">{{ l.tipo_bicicleta }}</span>{% endif %}
+              </td>
+              <td class="mm-num">{{ km(l.km) }} <span class="text-muted">km</span></td>
+              <td class="mm-num text-muted d-none d-sm-table-cell">{{ num(l.atividades) }}</td>
+            </tr>
+            {% endfor %}
+            {% if not c.linhas %}
+            <tr><td class="text-muted text-center py-3">Ainda sem dados.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      {% if c.id == 'corrida' %}
+      <div class="card-footer small text-muted">
+        Corrida e caminhada andam juntas no ranking oficial do grupo — esta
+        tabela separa quem de fato corre, pelo esporte que o Strava informa
+        (atividade nova) ou pelo ritmo (atividade antiga, sem esse dado
+        ainda). {{ foto.esporte_gravado.porcento }}% das atividades já têm o
+        esporte confirmado pelo Strava.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ==================== RECORDES ====================
+   DUAS PERGUNTAS DIFERENTES (09/09/2026, pedido do dono): a tabela de cima diz
+   como a pessoa anda no dia a dia; esta diz o melhor resultado dela. O numero
+   e' CLICAVEL e abre a atividade no Strava, em aba nova -- transparencia e' a
+   ultima trava: nenhum filtro automatico substitui um par de olhos quando o
+   assunto e' dizer publicamente quem foi o mais rapido. #}
+<div class="row g-3 mb-4">
+  {% for c in (foto.recordes or []) %}
+  <div class="col-12 col-lg-6">
+    <div class="card shadow-sm h-100 mm-classif">
+      <div class="card-header py-2">
+        <i class="fas fa-trophy text-warning"></i> {{ c.titulo }}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover">
+          <tbody>
+            {% for l in c.linhas %}
+            <tr>
+              <td class="mm-pos mm-pos-{{ l.posicao }}">{{ l.posicao }}</td>
+              <td>
+                {% if l.strava_id %}
+                  <a class="mm-atleta" target="_blank" rel="noopener"
+                     href="{{ url_for('athlete.dashboard', strava_id=l.strava_id) }}">{{ l.nome }}</a>
+                {% else %}
+                  {{ l.nome }}
+                {% endif %}
+                <div class="text-muted" style="font-size:.72rem;">
+                  {{ l.distancia }} km · {{ l.quando }}
+                  {% if l.porcento_do_recorde %}
+                    · <span title="comparado ao recorde mundial de {{ l.recorde.prova }} ({{ l.recorde.quem }}, {{ l.recorde.ano }}: {{ l.recorde.kmh }} km/h)">{{ l.porcento_do_recorde }}% do recorde mundial</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td class="mm-num">
+                {% if l.atividade_id %}
+                  <a target="_blank" rel="noopener" class="fw-bold text-decoration-none"
+                     title="abrir esta atividade no Strava para conferir"
+                     href="https://www.strava.com/activities/{{ l.atividade_id }}">
+                    {{ l.velocidade_media }} <span class="text-muted">km/h</span>
+                  </a>
+                {% else %}
+                  {{ l.velocidade_media }} <span class="text-muted">km/h</span>
+                {% endif %}
+              </td>
+              {% if l.ritmo %}
+              <td class="mm-num text-muted d-none d-sm-table-cell">{{ l.ritmo }}<span class="text-muted">/km</span></td>
+              {% endif %}
+              {# TIRAR UMA MARCA ERRADA (19/09/2026, item 76): só para quem
+                 está logado e pode administrar; o público não vê nada disso.
+                 Os km continuam contando — sai só das tabelas de velocidade. #}
+              {% if current_user.is_authenticated and current_user.pode_administrar and l.atividade_id %}
+              <td class="text-end">
+                <details>
+                  <summary class="small text-muted" style="cursor:pointer" title="tirar esta marca das tabelas de velocidade">
+                    <i class="fas fa-flag"></i>
+                  </summary>
+                  <form method="POST" action="{{ url_for('ranking.marca_fora_do_recorde') }}"
+                        class="mt-1" style="min-width:12rem"
+                        onsubmit="return confirm('Tirar esta marca das tabelas de velocidade?\n\nOs km continuam contando no ranking.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="id_atividade" value="{{ l.atividade_id }}">
+                    <input type="text" name="motivo" class="form-control form-control-sm mb-1"
+                           placeholder="o que você viu (ex.: GPS em linha reta)" required minlength="5">
+                    <button class="btn btn-sm btn-outline-danger w-100">Não contar como recorde</button>
+                  </form>
+                </details>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+            {% if not c.linhas %}
+            <tr><td class="text-muted text-center py-3">Ainda não há atividade suficiente.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{# UM TEXTO SO PARA AS DUAS TABELAS (19/09/2026, achado do dono): ele estava
+   dentro de cada card e aparecia repetido, lado a lado. Aqui ele ocupa a
+   largura toda, uma vez, com o caminho para avisar sobre uma marca errada. #}
+{% if foto.recordes %}
+<div class="small text-muted mb-4">
+  A melhor atividade de cada pessoa. <strong>Clique na velocidade</strong>
+  para abrir a atividade no Strava e conferir. Só entram atividades a partir
+  de 2,2 km — em distância curta o GPS erra bastante nos primeiros metros, e
+  isso mudaria o resultado.
+  <span class="d-block mt-1">A porcentagem compara com o recorde mundial da
+  distância mais próxima, só para dar uma referência: em corrida, os recordes
+  oficiais (5 km, 10 km, meia, maratona); em ciclismo, o recorde da hora, que
+  é feito em velódromo com bicicleta de pista — ninguém em estrada chega
+  perto, e não é para chegar.</span>
+  <div class="mt-2">
+    <strong>Achou uma marca errada?</strong> Às vezes o GPS falha num trecho e
+    inventa uma velocidade. Avise a organização: a atividade é conferida no
+    Strava e, se não valer, sai da lista.
+    {% for c in (foto.cidades_com_dado or []) %}
+      <a class="btn btn-sm btn-outline-secondary ms-1 mt-1"
+         href="{{ url_for('ranking.feedback_public', city_slug=c.slug) }}">
+        <i class="fas fa-flag me-1"></i>Avisar{% if (foto.cidades_com_dado|length) > 1 %} — {{ c.nome }}{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ==================== MAIS VELOZES ==================== #}
+<div class="row g-3 mb-4">
+  {% for c in foto.mais_velozes %}
+  <div class="col-12 col-lg-6">
+    <div class="card shadow-sm h-100 mm-classif">
+      <div class="card-header py-2">
+        <i class="fas fa-bolt text-warning"></i> {{ c.titulo }}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover">
+          <tbody>
+            {% for l in c.linhas %}
+            <tr>
+              <td class="mm-pos mm-pos-{{ l.posicao }}">{{ l.posicao }}</td>
+              <td>
+                {% if l.strava_id %}
+                  <a class="mm-atleta" href="{{ url_for('athlete.dashboard', strava_id=l.strava_id) }}">{{ l.nome }}</a>
+                {% else %}
+                  {{ l.nome }}
+                {% endif %}
+                {% if l.tipo_bicicleta %}<span class="badge bg-secondary ms-1 text-uppercase" style="font-size:.62rem;">{{ l.tipo_bicicleta }}</span>{% endif %}
+              </td>
+              {# km/h E RITMO lado a lado (09/09/2026, pedido do dono): a maioria
+                 das pessoas nao le ritmo, e algumas so entendem ritmo. #}
+              <td class="mm-num">{{ l.velocidade_media }} <span class="text-muted">km/h</span></td>
+              {% if l.ritmo %}
+              <td class="mm-num text-muted d-none d-sm-table-cell">{{ l.ritmo }}<span class="text-muted">/km</span></td>
+              {% endif %}
+              <td class="mm-num text-muted d-none d-md-table-cell" title="atividades que entraram na conta">{{ num(l.atividades) }}</td>
+            </tr>
+            {% endfor %}
+            {% if not c.linhas %}
+            <tr><td class="text-muted text-center py-3">Ninguém com 5 atividades ainda.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer small text-muted">
+        O número é o <strong>ritmo do meio</strong> de cada pessoa: colocamos
+        todas as atividades dela em ordem, da mais lenta para a mais rápida, e
+        pegamos a do meio. Não é média. Assim, um dia fora do normal — para
+        mais ou para menos — não muda o resultado de ninguém. Só aparece quem
+        tem pelo menos 5 atividades. A última coluna mostra quantas entraram na
+        conta. <strong>Isto não tira quilômetro de ninguém: o ranking continua
+        somando tudo.</strong>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ==================== APOIE O PROJETO ==================== #}
+{# Vem ANTES da lista de patrocinadores, de propósito (pedido do dono): quem
+   acabou de ver os números é quem está mais propenso a ajudar. #}
+{% if pix and pix.chave_pix %}
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <p class="mm-secao-titulo mb-3 h5">
+      <i class="fas fa-hand-holding-heart text-success"></i> {{ texto('home.titulo_apoie', 'Apoie o projeto') }}
+    </p>
+    <div class="row g-3 align-items-center">
+      <div class="col-12 col-md-auto text-center">
+        <img class="mm-apoio-qr" alt="QR Code do PIX do projeto"
+             src="{{ url_for('static', filename='images/qrcode_doacao.png') }}">
+      </div>
+      <div class="col">
+        <p class="mb-2">
+          Cada medalha entregue sai do bolso de alguém. Qualquer valor ajuda — e
+          tudo que entra aparece na
+          {% if slug_da_cidade %}
+            <a href="{{ url_for('ranking.transparencia_public', city_slug=slug_da_cidade) }}">prestação de contas</a>,
+          {% else %}prestação de contas,{% endif %}
+          aberta a quem quiser conferir.
+        </p>
+        <label class="form-label small mb-1" for="chavePix">Chave PIX</label>
+        <div class="input-group input-group-sm" style="max-width: 26rem;">
+          <input type="text" class="form-control" id="chavePix" readonly
+                 value="{{ pix.chave_pix }}" onfocus="this.select()">
+          <button class="btn btn-outline-success" type="button"
+                  onclick="var c=document.getElementById('chavePix');c.select();document.execCommand('copy');this.textContent='Copiado!'">
+            Copiar
+          </button>
+        </div>
+        <p class="text-muted small mb-0 mt-2">
+          O projeto não cobra nada de quem participa, e nunca vai cobrar.
+          Fez uma doação? <a href="https://wa.me/{{ dado_local('contato_whatsapp') }}">manda o
+          comprovante no WhatsApp</a> — é o contato mais rápido; o e-mail
+          <a href="mailto:{{ dado_local('contato_email') }}">{{ dado_local('contato_email') }}</a> também
+          recebe.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ==================== QUEM APOIA ==================== #}
+{% if foto.patrocinadores %}
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-white py-3">
+    <span class="mm-secao-titulo">
+      <i class="fas fa-handshake text-success"></i> {{ texto('home.titulo_patrocinadores', 'Quem apoia o projeto') }}
+    </span>
+  </div>
+  <div class="table-responsive mm-patroc">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th scope="col" style="width: 110px;">Marca</th>
+          <th scope="col">Patrocinador</th>
+          <th scope="col">O que apoia</th>
+          <th scope="col">Quando</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in foto.patrocinadores %}
+        <tr>
+          <td>
+            {% if p.logo_id %}
+              <img class="mm-logo" src="{{ url_for('ranking.public_extra_sponsor_logo', sponsor_id=p.logo_id) }}"
+                   alt="Logo de {{ p.nome }}" loading="lazy" decoding="async"
+                   width="92" height="46">
+            {% else %}
+              <span class="mm-sem-logo">sem logo</span>
+            {% endif %}
+          </td>
+          <td>
+            <strong>{{ p.nome }}</strong>
+            {% if p.continuo %}
+              <span class="badge bg-success ms-1">todo mês</span>
+            {% endif %}
+            {# A cidade só aparece quando há mais de uma no circuito: com uma
+               cidade só, repetir o nome em toda linha é ruído. #}
+            {% if p.cidades and foto.cidades_com_dado|length > 1 %}
+              <span class="d-block text-muted small">{{ p.cidades|join(' · ') }}</span>
+            {% endif %}
+          </td>
+          <td class="small">
+            {% if p.banca %}{{ p.banca|join(' · ') }}{% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+          <td class="small text-muted">
+            {% if p.continuo %}
+              desde {{ p.meses[0] }}
+            {% elif p.qtd_meses == 1 %}
+              {{ p.meses[0] }}
+            {% else %}
+              {{ p.meses|join(' · ') }}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer small text-muted">
+    Cada medalha entregue e cada ação do projeto é bancada por quem está nesta
+    lista — e nada é cobrado de quem participa. Quer apoiar?
+    <a href="mailto:{{ dado_local('contato_email') }}">{{ dado_local('contato_email') }}</a>.
+  </div>
+</div>
+{% endif %}
+
+{# ==================== O AVISO QUE NÃO PODE FALTAR ==================== #}
+<div class="alert alert-light border d-flex gap-3 align-items-start mb-4">
+  <i class="fas fa-heart-pulse text-success mt-1"></i>
+  <div>
+    <strong>Respeite os seus limites.</strong>
+    O objetivo é se movimentar com saúde — corpo e cabeça andam juntos, e é isso
+    que o projeto persegue. Aqui ninguém disputa com ninguém: a única comparação
+    que interessa é com a sua própria versão de ontem, um pouco melhor a cada dia.
+    Procure orientação profissional antes de aumentar o ritmo, e
+    <strong>reduza e controle-se quando o corpo pedir</strong>.
+  </div>
+</div>
+
+{# ==================== TRANSPARÊNCIA DO ENDEREÇO ==================== #}
+<p class="text-muted small text-center mb-0">
+  Este site funciona em <code>movementes.engekon.com</code>, um subdomínio cedido
+  sem custo ao projeto pela Engekon Engenharia. Não há atividade comercial
+  hospedada aqui. Quando houver orçamento, o projeto passa a ter domínio próprio.
+</p>
+{% endblock %}

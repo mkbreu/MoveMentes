@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Feedback - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 720px;">
+    <h1 class="display-6 text-center mb-2">
+        <i class="fas fa-comment-dots text-primary"></i> Fale com a organização
+    </h1>
+    <p class="lead text-center text-muted">{{ cidade }}</p>
+    <p class="text-center mb-4">
+        Envie uma sugestão, um elogio ou peça a revisão do ranking. Sua mensagem chega direto para a organização.
+    </p>
+
+    <form method="POST" action="{{ url_for('ranking.feedback_public', city_slug=city_slug) }}" id="feedbackForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="mb-4">
+            <label class="form-label fw-bold d-block mb-2">O que você deseja enviar?</label>
+            <div class="btn-group-vertical w-100" role="group" aria-label="Tipo de mensagem">
+                <input type="radio" class="btn-check" name="tipo" id="tipoSugestao" value="sugestao" autocomplete="off" checked>
+                <label class="btn btn-outline-primary text-start" for="tipoSugestao">
+                    <i class="fas fa-lightbulb me-2"></i>Sugestão / Elogio
+                </label>
+
+                <input type="radio" class="btn-check" name="tipo" id="tipoReclamacao" value="reclamacao" autocomplete="off">
+                <label class="btn btn-outline-primary text-start mt-2" for="tipoReclamacao">
+                    <i class="fas fa-triangle-exclamation me-2"></i>Reclamação
+                </label>
+
+                <input type="radio" class="btn-check" name="tipo" id="tipoRevisao" value="revisao_ranking" autocomplete="off">
+                <label class="btn btn-outline-primary text-start mt-2" for="tipoRevisao">
+                    <i class="fas fa-magnifying-glass me-2"></i>Pedir revisão do ranking
+                </label>
+            </div>
+        </div>
+
+        <div class="mb-3" id="nomeWrapper" style="display:none;">
+            <label for="nome_atleta" class="form-label fw-bold">Nome do atleta (obrigatório para revisão)</label>
+            <input type="text" class="form-control" id="nome_atleta" name="nome_atleta" maxlength="100"
+                   placeholder="Seu nome como aparece no ranking">
+        </div>
+
+        <div class="mb-3">
+            <label for="mensagem" class="form-label fw-bold">Mensagem</label>
+            <textarea class="form-control" id="mensagem" name="mensagem" rows="5" maxlength="4000" required
+                      placeholder="Escreva aqui..."></textarea>
+        </div>
+
+        <div class="mb-4">
+            <label for="contato" class="form-label">Contato para retorno (opcional)</label>
+            <input type="text" class="form-control" id="contato" name="contato" maxlength="120"
+                   placeholder="WhatsApp ou e-mail">
+        </div>
+
+        <div class="d-grid">
+            <button type="submit" class="btn btn-success btn-lg">
+                <i class="fas fa-paper-plane me-1"></i> Enviar mensagem
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    (function () {
+        const revisao = document.getElementById('tipoRevisao');
+        const wrapper = document.getElementById('nomeWrapper');
+        const nome = document.getElementById('nome_atleta');
+        const radios = document.querySelectorAll('input[name="tipo"]');
+
+        function sync() {
+            const isRevisao = revisao.checked;
+            wrapper.style.display = isRevisao ? 'block' : 'none';
+            if (nome) { nome.required = isRevisao; }
+        }
+        radios.forEach(function (r) { r.addEventListener('change', sync); });
+        sync();
+    })();
+</script>
+{% endblock %}

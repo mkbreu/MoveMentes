@@ -1,0 +1,200 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: auto-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    command:
+      - postgres
+      - "-c"
+      - "max_connections=3000"
+
+  waha:
+    # TAG FIXA, NUNCA 'latest' (16/08/2026). Com 'latest' o compose nunca
+    # troca de imagem sozinho -- so pull explicito -- mas o nome engana quem
+    # olha depois achando que esta sempre atualizado. Estava parado 4 semanas
+    # na mesma imagem enquanto o WhatsApp Web (fora do nosso controle)
+    # continuava mudando por baixo, e foi isso que rompeu o gancho de receber
+    # mensagem (ver ERROS.md, medicao de 15-16/08). Imagem anterior preservada
+    # localmente como devlikeapro/waha:rollback-antes-20260816 -- 'docker tag'
+    # + editar esta linha de volta e o caminho pra voltar, sem precisar puxar
+    # nada da internet de novo.
+    image: devlikeapro/waha:latest-2026.8.1
+    # P-03 (06/08): nome derivado de <papel>-<cidade>, secao 3 do DICIONARIO.
+    # Sabendo o papel e a cidade, sabem-se todos os outros nomes sem abrir
+    # arquivo nenhum — e isso que impede a divergencia que derrubou o ranking
+    # em 02-03/08.
+    container_name: auto-waha-pls
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: WEBJS
+
+      # NAO REPOR "WHATSAPP_START_SESSION: default" — causa raiz do LOGOUT.
+      #
+      # Com ele, a sessao era iniciada DUAS VEZES a cada boot do container:
+      #   00:07:47  Starting sessions for the worker "movimente-wsl"   <- WORKER_RESTART
+      #   00:07:47  Session has been started                            <- inicio 1
+      #   00:07:48  Restarting sessions with delay of 5 seconds         <- START_SESSION
+      #   00:07:55  ERROR auth timeout                                  <- a colisao
+      #   00:08:03  Session has been started                            <- inicio 2
+      # Duas conexoes com a MESMA credencial fazem o WhatsApp derrubar uma
+      # delas, e o whatsapp-web.js recebe LOGOUT — invalidando a sessao e
+      # exigindo QR novo. Era por isso que "piorava a cada reinicio".
+      #
+      # WAHA_WORKER_RESTART_SESSIONS abaixo ja restaura a sessao do worker
+      # sozinho (e o padrao do WAHA). Uma coisa so cuidando do arranque.
+      # ID FIXO DO WORKER — a peca que faltava.
+      # A doc oficial: "Workers restore sessions if the worker got restarted...
+      # each worker will restore its own sessions". Sem esta variavel o WAHA usa
+      # o hostname do container como id; como o hostname muda a cada
+      # "docker compose up --force-recreate", o worker novo nao reconhecia a
+      # sessao do worker antigo e ela aparecia como orfa (session_worker vazia,
+      # "Sessions: 0" no painel). Com um id fixo a sessao e sempre reencontrada.
+      WAHA_WORKER_ID: ${WAHA_WORKER_ID:-w-principal-pls}
+      # Substitui WHATSAPP_RESTART_ALL_SESSIONS, que esta descontinuada.
+      WAHA_WORKER_RESTART_SESSIONS: "True"
+      # OS DOIS NAMESPACES, e cada um manda num banco diferente:
+      #   WAHA_NAMESPACE         -> waha_{ns}            config e sessoes
+      #   WAHA_SESSION_NAMESPACE -> waha_{sns}_{sessao}  credencial da sessao
+      # O segundo estava AUSENTE aqui e virava `webjs` por padrao — foi o que
+      # deixou os nomes das duas instancias sem regra (P-03). Trocar qualquer
+      # um deles troca o banco: os bancos novos foram preparados em 06/08 por
+      # scripts/migrar_namespace.py, com a credencial dentro.
+      WAHA_NAMESPACE: ${WAHA_NAMESPACE:-principal-pls}
+      WAHA_SESSION_NAMESPACE: ${WAHA_SESSION_NAMESPACE:-s-principal-pls}
+      WAHA_API_KEY: ${WAHA_API_KEY}
+      WAHA_DASHBOARD_ENABLED: "true"
+      WAHA_DASHBOARD_USERNAME: ${WAHA_DASHBOARD_USER}
+      WAHA_DASHBOARD_PASSWORD: ${WAHA_DASHBOARD_PASS}
+      # A partir da 2026.7.x o WAHA gera credenciais NOVAS do Swagger a cada
+      # boot se estas duas nao vierem fixadas — e o /api do dashboard passa a
+      # pedir senha desconhecida. Fixar aqui mantem o login estavel.
+      WHATSAPP_SWAGGER_USERNAME: ${WAHA_DASHBOARD_USER}
+      WHATSAPP_SWAGGER_PASSWORD: ${WAHA_DASHBOARD_PASS}
+      WAHA_PRINT_QR: "false"
+      # Sessao no PostgreSQL, como manda o plano V6.0.
+      #
+      # Cheguei a mover para arquivo achando que a persistencia era a culpada
+      # pelos LOGOUT. Nao era: o culpado era o start duplicado explicado acima.
+      # Com aquilo resolvido, o banco continua sendo o lugar certo — sobrevive
+      # a recriacao do container e permite backup junto com o resto.
+      #
+      # A senha vai PERCENT-ENCODED (POSTGRES_PASSWORD_URL). Com "@" na senha
+      # crua o parser leria o "@" como separador de host e o WAHA subiria com
+      # "password authentication failed for user automation".
+      WHATSAPP_SESSIONS_POSTGRESQL_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD_URL}@auto-postgres:5432/${POSTGRES_DB}?sslmode=disable
+      WAHA_AUTO_START_DELAY_SECONDS: "5"
+      TZ: America/Sao_Paulo
+    volumes:
+      # `.sessions` e CACHE do Chromium, nao credencial: o WAHA extrai a
+      # sessao do zip do Postgres a cada arranque ("Session has been
+      # extracted"). Por isso a pasta nova pode nascer vazia — nao foi
+      # copiada da antiga de proposito (06/08).
+      - ./waha/pls/sessions:/app/.sessions
+      - ./waha/pls/media:/app/.media
+      # CORRECAO DO ENVIO DE IMAGEM (17/09/2026). O whatsapp-web.js 1.34.7 desta
+      # imagem quebra TODO envio de midia com o WhatsApp Web atual ("Data passed
+      # to getter must include an id property") — a logo do patrocinador nao
+      # saia, so a legenda. Correcao de uma linha do PR wwebjs #201923; o WAHA
+      # ainda nao a publicou (devlikeapro/waha#2271, aberta inclusive na
+      # 2026.8.2). Ao trocar a versao do WAHA, CONFERIR se ainda e preciso — o
+      # arquivo montado por cima e o desta versao. Original guardado em
+      # patches/whatsapp-web.js/Utils.original.js.
+      - ./patches/whatsapp-web.js/Utils.js:/app/node_modules/whatsapp-web.js/src/util/Injected/Utils.js:ro
+    # /dev/shm de 64 MB e o PADRAO do Docker, e e pouco para o Chromium: e a
+    # causa classica de aba que morre sozinha em container. O WAHA ja sobe com
+    # --disable-dev-shm-usage (conferido em 06/08 nos processos), que desvia o
+    # problema mandando o Chromium usar /tmp — mas /tmp aqui e disco, nao
+    # memoria. Dar 1 GB devolve o caminho rapido e tira uma variavel da mesa.
+    # NAO e a cura do "Target closed": aquilo vem de page.evaluate pesado
+    # estourando o protocolTimeout do puppeteer (ver P-44).
+    shm_size: 1gb
+    # O QUE ESTE HEALTHCHECK PROVA — E O QUE ELE NAO PROVA
+    # Prova: o processo do WAHA subiu e a API responde. So isso.
+    # NAO prova que a sessao esta conectada, e muito menos que o historico
+    # terminou de sincronizar — quem responde por essas duas e o
+    # scripts/prontidao.py, que pergunta pela sessao e tenta LER o grupo.
+    # Sem isto o `docker ps` mostrava status vazio para os dois WAHA e so o
+    # Postgres aparecia como "healthy": um container travado ficava com cara de
+    # container saudavel.
+    # start_period generoso de proposito: o WEBJS sobe um Chromium inteiro.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-m", "5", "http://127.0.0.1:3000/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    ports:
+      - "3000:3000"
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '50m'
+        max-file: '5'
+
+  # ===== A SEGUNDA INSTANCIA SAIU EM 08/09/2026 (fusao por cidade) =====
+  #
+  # ANTES: um container por NUMERO (principal na 3000, suplente na 3001).
+  # AGORA: um container por CIDADE, com uma sessao por numero dentro dele.
+  #
+  # POR QUE MUDOU: medido em 07/09, cada container custa um processo Node
+  # proprio de ~230 MB (Pss) alem do Chromium da sessao. Numa maquina com teto
+  # de 3,8 GB no WSL2 e que precisa comportar mais cidades, isso e' caro demais
+  # para o que entrega. Tirar o container do suplente devolveu 296 MB na hora.
+  #
+  # O QUE A INSTANCIA SEPARADA PROTEGIA, E O QUE ENTRA NO LUGAR:
+  # O comentario antigo aqui dizia, com razao, que "duas sessoes na MESMA
+  # instancia dividem o mesmo painel e a mesma chave de API: quem abre o painel
+  # ve as conversas das duas". Isso continua verdade — a separacao fisica era
+  # uma garantia de privacidade, e ela se perde aqui.
+  #
+  # A troca foi decidida pelo dono em 07/09 e a compensacao e' a TRILHA DE
+  # ACESSO: todo acesso ao WAHA passa a ser registrado (quem, quando, qual
+  # sessao, qual acao — em especial abrir conversa), e acesso pelo painel do
+  # WAHA em localhost, fora do site, entra como "nao identificado", que e' o
+  # sinal de uso direto da maquina ou de invasao. Prova nos dois sentidos.
+  #
+  # O ISOLAMENTO DE CREDENCIAL NAO SE PERDE: o banco de cada sessao e
+  # `waha_{WAHA_SESSION_NAMESPACE}_{nome_da_sessao}` - o nome da sessao entra
+  # no nome do banco, entao duas sessoes no mesmo container continuam em bancos
+  # separados. O incidente de 01/08 (`waha_all`) foi AUSENCIA do namespace,
+  # nao convivencia.
+  #
+  # A sessao NAO se muda de instancia: o suplente precisa parear de novo, uma
+  # vez so, agora dentro deste mesmo container.
+  #
+  # Guardado antes de mexer: docker-compose.yml.antes_fusao_20260908 e
+  # backups/pre_fusao_20260908/ (pg_dumpall + config e sessoes).
+
+# ============================================================
+# n8n REMOVIDO EM 06/09/2026 (P-109).
+#
+# Conferido no dia: ZERO fluxos (workflow_entity) e ZERO execucoes
+# (execution_entity) no banco n8n_db; N8N_WEBHOOK_URL vazio; n8n-data/
+# intocado desde 28/07. Ele ocupava 276 MB de RAM numa maquina que estava
+# com 68 MB livres e o swap esgotado, mais 2,26 GB de imagem em disco.
+#
+# Medido depois de tirar: 68 MB livres -> 296 MB, swap 1023 -> 933.
+#
+# O QUE FOI GUARDADO, e onde, caso um dia faca falta:
+#   backups/n8n_db_20260906.sql        (pg_dump do banco)
+#   docker-compose.yml.antes_n8n_20260906
+#   n8n-data/                          (intocado, de proposito)
+#   banco n8n_db                       (nao foi apagado)
+# ============================================================

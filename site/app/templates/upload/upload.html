@@ -1,0 +1,869 @@
+{% extends "base.html" %}
+
+{% block title %}Upload de Arquivo - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-3">
+    <a class="btn btn-outline-primary btn-sm mb-2" href="{{ url_for('upload.importar_atleta') }}">Importar atividades de um atleta</a>
+</div>
+<style>
+    .dino-game-wrapper {
+        border: 2px solid #d4d4d4;
+        width: 100%;
+        height: 170px;
+        overflow: hidden;
+        position: relative;
+        background: linear-gradient(#fbfbfb 0 72%, #e7e7e7 72% 74%, #f7f7f7 74%);
+        border-radius: 8px;
+        user-select: none;
+        touch-action: manipulation;
+    }
+    .game-container {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+        outline: none;
+    }
+    .game-container:focus {
+        box-shadow: inset 0 0 0 2px rgba(33, 37, 41, .18);
+    }
+    .runner {
+        width: 44px;
+        height: 48px;
+        position: absolute;
+        bottom: 10px;
+        left: 48px;
+        display: none;
+        background: #333;
+        clip-path: polygon(16% 26%, 36% 10%, 68% 10%, 78% 20%, 78% 35%, 62% 35%, 62% 45%, 82% 45%, 82% 56%, 58% 56%, 58% 76%, 70% 76%, 70% 94%, 54% 94%, 45% 77%, 30% 77%, 21% 94%, 6% 94%, 16% 72%, 8% 60%, 8% 40%);
+        image-rendering: pixelated;
+    }
+    .runner::after {
+        content: "";
+        position: absolute;
+        width: 4px;
+        height: 4px;
+        right: 11px;
+        top: 12px;
+        background: #f7f7f7;
+        border-radius: 50%;
+    }
+    .obstacle {
+        position: absolute;
+        left: 100%;
+    }
+    .obstacle.cactus {
+        width: 22px;
+        height: 46px;
+        bottom: 10px;
+        background: #333;
+        border-radius: 5px 5px 2px 2px;
+    }
+    .obstacle.cactus::before,
+    .obstacle.cactus::after {
+        content: "";
+        position: absolute;
+        width: 10px;
+        height: 24px;
+        bottom: 12px;
+        background: #333;
+        border-radius: 5px;
+    }
+    .obstacle.cactus::before {
+        left: -8px;
+        height: 20px;
+    }
+    .obstacle.cactus::after {
+        right: -8px;
+        bottom: 18px;
+    }
+    .obstacle.bird {
+        width: 40px;
+        height: 22px;
+        bottom: 58px;
+    }
+    .obstacle.bird::before,
+    .obstacle.bird::after {
+        content: "";
+        position: absolute;
+        width: 24px;
+        height: 12px;
+        border-top: 5px solid #333;
+        top: 8px;
+    }
+    .obstacle.bird::before {
+        left: 0;
+        transform: rotate(24deg);
+    }
+    .obstacle.bird::after {
+        right: 0;
+        transform: rotate(-24deg);
+    }
+    .game-start-message {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 1.02rem;
+        color: #555;
+        margin: 0;
+        text-align: center;
+        width: 90%;
+        z-index: 2;
+    }
+    .score-display,
+    .best-score-display,
+    .speed-display {
+        position: absolute;
+        right: 10px;
+        color: #333;
+        font-weight: 700;
+        line-height: 1.1;
+    }
+    .score-display { top: 10px; }
+    .best-score-display { top: 31px; font-size: .86rem; color: #555; }
+    .speed-display { top: 50px; font-size: .78rem; color: #777; }
+</style>
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-upload"></i> Upload de Conversa do WhatsApp
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <h5><i class="fas fa-info-circle"></i> Como exportar a conversa:</h5>
+                    <ol class="mb-0">
+                        <li>Abra o grupo do WhatsApp</li>
+                        <li>Toque nos três pontos (⋮) no canto superior direito</li>
+                        <li>Selecione "Mais" → "Exportar conversa"</li>
+                        <li>Escolha <strong>"Com mídia"</strong> (necessário para incluir os links do Strava)</li>
+                        <li>Salve o arquivo ZIP gerado ou envie o TXT da conversa</li>
+                    </ol>
+                    <small class="text-muted">O arquivo ZIP ou TXT será enviado em partes. O processamento roda no servidor — você pode fechar o navegador após o envio.</small>
+                </div>
+                <div class="mb-3">
+                    <a href="{{ url_for('upload.manual_links') }}" class="btn btn-outline-danger">
+                        <i class="fab fa-strava"></i> Processar links avulsos
+                    </a>
+                </div>
+
+                <form id="uploadForm" method="POST" action="{{ url_for('upload.process_upload') }}" enctype="multipart/form-data">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.file.label(class="form-label") }}
+                        {{ form.file(class="form-control", accept=".zip,.txt,text/plain,application/zip,application/x-zip-compressed") }}
+                        {% if form.file.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.file.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label for="periodoUpload" class="form-label">Período das atividades a contabilizar</label>
+                        <select class="form-select" id="periodoUpload" name="periodo_upload">
+                            <option value="mes_atual" selected>Somente mês atual</option>
+                            <option value="mes_atual_anterior">Mês atual e mês anterior</option>
+                            <option value="periodo_especifico">Escolher mês e ano</option>
+                            <option value="todos_periodos">Todos os períodos do arquivo</option>
+                        </select>
+                        <small class="text-muted d-block">A classificação usa a data real da atividade no Strava, nunca a data da mensagem.</small>
+                    </div>
+                    <div class="row g-2 mb-3" id="periodoEspecificoCampos" style="display:none;">
+                        <div class="col-md-6">
+                            <label for="periodoMes" class="form-label">Mês</label>
+                            <select id="periodoMes" name="periodo_mes" class="form-select">
+                                <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+                                <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+                                <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+                                <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="periodoAno" class="form-label">Ano</label>
+                            <input id="periodoAno" type="number" name="periodo_ano" class="form-control" min="2000" max="2100">
+                        </div>
+                    </div>
+                    <div class="mb-3 form-check d-none">
+                        {{ form.process_current_month(class="form-check-input") }}
+                        {{ form.process_current_month.label(class="form-check-label") }}
+                        <small class="text-muted d-block">Processa apenas atividades do mês atual, ignorando meses anteriores.</small>
+                    </div>
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary btn-lg", id="submitBtn") }}
+                    </div>
+                </form>
+
+                <!-- Seção de Progresso -->
+                <div id="progressSection" class="mt-4" style="display: none;">
+                    <h5 class="text-center">
+                        <i class="fas fa-cog fa-spin me-2"></i>
+                        <span id="progressTitle">Processando seu arquivo...</span>
+                    </h5>
+                    <div class="progress mt-3" style="height: 28px;">
+                        <div id="progressBar"
+                             class="progress-bar progress-bar-striped progress-bar-animated"
+                             role="progressbar"
+                             style="width: 2%; transition: width 0.5s ease;"
+                             aria-valuenow="2" aria-valuemin="0" aria-valuemax="100">
+                            <span id="progressPct" class="fw-bold">2%</span>
+                        </div>
+                    </div>
+                    <div id="stageBox" class="alert alert-secondary mt-3 mb-0 d-flex align-items-center gap-2" style="font-size:0.93rem;">
+                        <span class="spinner-border spinner-border-sm text-primary flex-shrink-0" role="status" aria-hidden="true"></span>
+                        <span id="statusMessage">Iniciando...</span>
+                    </div>
+
+                    <!-- Botão Cancelar -->
+                    <div class="mt-3 text-center" id="cancelArea" style="display:none;">
+                        <button type="button" class="btn btn-outline-danger btn-sm" id="cancelBtn"
+                                title="Para de buscar os próximos. O que já foi encontrado fica salvo.">
+                            <i class="fas fa-stop-circle me-1"></i> Cancelar Processamento
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Seção de Resultados -->
+                <div id="resultsSection" class="mt-4 alert alert-success" style="display: none;">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <span id="resultMessage"></span>
+                    <div class="mt-2">
+                        <a id="rankingLink" href="{{ url_for('ranking.current') }}" class="btn btn-success btn-sm">
+                            <i class="fas fa-trophy me-1"></i>Ver Ranking
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Alerta job não encontrado -->
+                <div id="serverRunningAlert" class="mt-4 alert alert-warning" style="display: none;">
+                    <i class="fas fa-server me-2"></i>
+                    <strong>Não foi possível acompanhar este processamento.</strong>
+                    <p class="mb-2 mt-1">Confira o histórico abaixo ou recarregue a página. Processamentos sem progresso agora são encerrados automaticamente como erro tratado.</p>
+                    <a href="{{ url_for('ranking.current') }}" class="btn btn-warning btn-sm">
+                        <i class="fas fa-trophy me-1"></i> Ver Ranking (atualiza automaticamente)
+                    </a>
+                    <button class="btn btn-outline-secondary btn-sm ms-2" onclick="location.reload()">
+                        <i class="fas fa-sync me-1"></i> Recarregar página
+                    </button>
+                </div>
+
+                <!-- Histórico de uploads -->
+                {% if processed_files %}
+                <div class="mt-4">
+                    <h5>Histórico de Uploads Recentes</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Arquivo</th>
+                                    <th>Cidade</th>
+                                    <th>Atividades</th>
+                                    <th>Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for file in processed_files %}
+                                <tr>
+                                    <td>{{ file.processado_em.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    <td class="text-truncate" style="max-width:200px;" title="{{ file.arquivo_nome }}">{{ file.arquivo_nome }}</td>
+                                    <td>{{ file.cidade }}</td>
+                                    <td class="small">
+                                        <div title="Quantos links do Strava foram visitados"><strong>{{ file.links_scrapeados or 0 }}</strong> links visitados</div>
+                                        <div title="Quantas atividades foram salvas no ranking"><strong>{{ file.total_atividades or 0 }}</strong> atividades salvas</div>
+                                        {% if file.atividades_pendentes and file.atividades_pendentes > 0 %}
+                                        <a class="badge bg-warning text-dark text-decoration-none mt-1"
+                                           href="{{ url_for('upload.pending_details', pf_id=file.id) }}"
+                                           title="Ver links pendentes deste processamento">
+                                            {{ file.atividades_pendentes }} pend.
+                                        </a>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if file.status == 'sucesso' %}
+                                            <span class="badge bg-success">sucesso</span>
+                                        {% elif file.status == 'erro' %}
+                                            <span class="badge bg-danger">erro</span>
+                                        {% elif file.status == 'processando' %}
+                                            <span class="badge bg-warning text-dark">processando</span>
+                                        {% elif file.status == 'parcial' %}
+                                            <span class="badge bg-info text-dark" title="Rodada parcial: a continuação começa sozinha em alguns minutos">parcial</span>
+                                        {% elif file.status == 'vazio' %}
+                                            <span class="badge bg-secondary">vazio</span>
+                                        {% elif file.status == 'cancelado' %}
+                                            <span class="badge bg-secondary">cancelado</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ file.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-outline-danger btn-sm py-0 px-1 del-history-btn"
+                                                data-id="{{ file.id }}"
+                                                title="Remover do histrico">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="mt-4">
+                    <h5 class="mb-3">
+                        <i class="fas fa-gamepad"></i> Desafio durante o processamento
+                    </h5>
+                    <div class="d-block mx-auto" style="max-width: 600px;">
+                        <div class="dino-game-wrapper">
+                            <div class="game-container" tabindex="0" role="button" aria-label="Jogo de corrida">
+                                <div class="runner"></div>
+                                <p class="game-start-message">Clique aqui e aperte ESPAÇO ou toque para pular.</p>
+                                <div class="score-display"></div>
+                                <div class="best-score-display"></div>
+                                <div class="speed-display"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Cancelamento (fora do .card: transform no hover do card prende position:fixed) -->
+<div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Cancelar Processamento</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-2">
+                    <i class="fas fa-shield-alt me-1"></i>
+                    Cada atividade é salva no banco assim que é processada — nada do que já
+                    entrou no ranking se perde ao parar.
+                </p>
+                <p>O que deseja fazer com as atividades <strong>já salvas</strong> no banco de dados?</p>
+                <div class="d-grid gap-2">
+                    <button class="btn btn-warning" id="cancelKeepBtn">
+                        <i class="fas fa-pause-circle me-2"></i>
+                        Parar agora e <strong>manter</strong> as atividades já salvas
+                    </button>
+                    <button class="btn btn-danger" id="cancelDeleteBtn">
+                        <i class="fas fa-trash me-2"></i>
+                        Parar e <strong>apagar tudo</strong> que foi salvo neste upload
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Voltar ao processamento</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    var CHUNK_SIZE = 1048576; // 1.0 MB -- comprovado funcionando
+
+    var form            = document.getElementById('uploadForm');
+    var submitBtn       = document.getElementById('submitBtn');
+    var progressSection = document.getElementById('progressSection');
+    var progressBar     = document.getElementById('progressBar');
+    var progressPct     = document.getElementById('progressPct');
+    var statusMsg       = document.getElementById('statusMessage');
+    var stageSpinner    = document.querySelector('#stageBox .spinner-border');
+    var resultsSection  = document.getElementById('resultsSection');
+    var resultMsg       = document.getElementById('resultMessage');
+    var rankingLink     = document.getElementById('rankingLink');
+    var cancelArea      = document.getElementById('cancelArea');
+    var cancelBtn       = document.getElementById('cancelBtn');
+    var cancelModal     = new bootstrap.Modal(document.getElementById('cancelModal'));
+    var serverAlert     = document.getElementById('serverRunningAlert');
+    var periodoUpload   = document.getElementById('periodoUpload');
+    var periodoCampos   = document.getElementById('periodoEspecificoCampos');
+    var periodoMes      = document.getElementById('periodoMes');
+    var periodoAno      = document.getElementById('periodoAno');
+
+    if (periodoMes && periodoAno) {
+        var hoje = new Date();
+        periodoMes.value = String(hoje.getMonth() + 1);
+        periodoAno.value = String(hoje.getFullYear());
+    }
+    function atualizarCamposPeriodo() {
+        if (periodoCampos && periodoUpload) {
+            periodoCampos.style.display = periodoUpload.value === 'periodo_especifico' ? '' : 'none';
+        }
+    }
+    if (periodoUpload) {
+        periodoUpload.addEventListener('change', atualizarCamposPeriodo);
+        atualizarCamposPeriodo();
+    }
+
+    var currentJobId   = null;
+    var pollTimer      = null;
+    // RITMO DA CONSULTA (26/08/2026). Ver o comentario longo em
+    // importar_atleta.html: `setInterval` fixo NAO espera a resposta chegar —
+    // se o servidor demora 60s, ele dispara 30 pedidos nesse meio tempo e o
+    // acumulo e garantido. Passa a ser um ciclo que so agenda o proximo depois
+    // que o atual terminou, com recuo quando a resposta nao vem.
+    var pollAtivo      = false;
+    var pollIntervalo  = 2000;
+    var POLL_NORMAL    = 2000;
+    var POLL_MAXIMO    = 30000;
+    var unknownCount   = 0;
+    var cancelRequested = false;
+    var staleNotified  = false;
+    var PENDING_JOB_KEY = 'movimenteUploadJob';
+
+    function setProgress(pct, message) {
+        pct = Math.max(2, Math.min(100, pct));
+        progressBar.style.width = pct + '%';
+        progressBar.setAttribute('aria-valuenow', pct);
+        progressPct.innerText = pct + '%';
+        statusMsg.innerText = message;
+    }
+
+    function showError(msg) {
+        progressSection.style.display = 'none';
+        cancelArea.style.display = 'none';
+        submitBtn.disabled = false;
+        form.parentNode.querySelectorAll('.alert-danger').forEach(function(el){ el.remove(); });
+        var errDiv = document.createElement('div');
+        errDiv.className = 'alert alert-danger mt-3';
+        errDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>' + escapeHtml(msg);
+        form.after(errDiv);
+    }
+
+    function escapeHtml(str) {
+        var d = document.createElement('div');
+        d.appendChild(document.createTextNode(str));
+        return d.innerHTML;
+    }
+
+    function formatBytes(b) {
+        if (b < 1024)    return b + ' B';
+        if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+        return (b / 1048576).toFixed(1) + ' MB';
+    }
+
+    function getCsrfToken() {
+        var el = form.querySelector('input[name="csrf_token"]');
+        return el ? el.value : '';
+    }
+
+    function genUUID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+    }
+
+    function stopPolling() {
+        pollAtivo = false;
+        if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+    }
+
+    function savePendingJob(jobId, rankingUrl) {
+        try {
+            localStorage.setItem(PENDING_JOB_KEY, JSON.stringify({
+                jobId: jobId,
+                rankingUrl: rankingUrl || '',
+                savedAt: Date.now()
+            }));
+        } catch(e) {}
+    }
+
+    function clearPendingJob() {
+        try { localStorage.removeItem(PENDING_JOB_KEY); } catch(e) {}
+    }
+
+    function notifyUpload(title, message) {
+        if (!('Notification' in window)) return;
+        if (Notification.permission === 'granted') {
+            try { new Notification(title, { body: message }); } catch(e) {}
+        }
+    }
+
+    function showCancelResult(message) {
+        stopPolling();
+        notifyUpload('MoveMentes: processamento cancelado', message);
+        progressSection.style.display = 'none';
+        cancelArea.style.display = 'none';
+        cancelBtn.disabled = false;
+        submitBtn.disabled = false;
+        form.parentNode.querySelectorAll('.alert-warning.upload-cancel-result').forEach(function(el){ el.remove(); });
+        var warnDiv = document.createElement('div');
+        warnDiv.className = 'alert alert-warning mt-3 upload-cancel-result';
+        warnDiv.innerHTML = '<i class="fas fa-stop-circle me-2"></i>' + escapeHtml(message);
+        form.after(warnDiv);
+        clearPendingJob();
+        cancelRequested = false;
+    }
+
+    function startPolling(jobId, rankingUrl) {
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission().catch(function(){});
+        }
+        stopPolling();
+        unknownCount = 0;
+        staleNotified = false;
+        pollAtivo = true;
+        pollIntervalo = POLL_NORMAL;
+        var agendarProxima = function () {
+            if (!pollAtivo) return;
+            pollTimer = setTimeout(consultar, pollIntervalo);
+        };
+        var consultar = function () {
+            if (!pollAtivo) return;
+            fetch('/upload/status/' + jobId, { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    pollIntervalo = POLL_NORMAL;   // respondeu: ritmo de sempre
+                    if (data.stage === 'unknown') {
+                        unknownCount++;
+                        // Depois de 3 polls seguidos unknown (6s), nao ha estado
+                        // em memoria nem arquivo de progresso para este job.
+                        if (unknownCount >= 3) {
+                            stopPolling();
+                            progressSection.style.display = 'none';
+                            cancelArea.style.display = 'none';
+                            stageSpinner.style.display = '';
+                            serverAlert.style.display = 'block';
+                            submitBtn.disabled = false;
+                            clearPendingJob();
+                        }
+                        return;
+                    }
+                    unknownCount = 0;
+                    setProgress(data.pct, data.message);
+
+                    if (data.stage === 'done') {
+                        stopPolling();
+                        stageSpinner.style.display = 'none';
+                        cancelArea.style.display = 'none';
+                        setTimeout(function () {
+                            progressSection.style.display = 'none';
+                            resultMsg.innerText = data.message;
+                            if (rankingUrl) rankingLink.href = rankingUrl;
+                            resultsSection.style.display = 'block';
+                            submitBtn.disabled = false;
+                            clearPendingJob();
+                            notifyUpload('MoveMentes', data.message);
+                        }, 1200);
+                    } else if (data.stage === 'cancelled') {
+                        showCancelResult(data.message);
+                    } else if (data.stage === 'error') {
+                        stopPolling();
+                        cancelArea.style.display = 'none';
+                        clearPendingJob();
+                        notifyUpload('MoveMentes: processamento com erro', data.message);
+                        showError(data.message);
+                    } else if (data.stage === 'cancelling') {
+                        cancelRequested = true;
+                        cancelArea.style.display = 'none';
+                        cancelBtn.disabled = true;
+                        statusMsg.innerText = data.message || 'Aguardando conclusão da atividade atual para cancelar...';
+                    } else if (data.stage === 'stale') {
+                        cancelRequested = false;
+                        cancelBtn.disabled = false;
+                        cancelArea.style.display = 'block';
+                        statusMsg.innerText = data.message;
+                        if (!staleNotified) {
+                            staleNotified = true;
+                            notifyUpload('MoveMentes: processamento sem resposta',
+                                'O processamento parou de responder. O sistema tenta ' +
+                                'retomar sozinho; se preferir, abra a página para cancelar.');
+                        }
+                    } else if (data.stage === 'scraping' || data.stage === 'saving' ||
+                               data.stage === 'anticheat' || data.stage === 'reading' ||
+                               data.stage === 'filtering') {
+                        cancelBtn.disabled = false;
+                        cancelArea.style.display = cancelRequested ? 'none' : 'block';
+                        staleNotified = false;  // voltou a responder: rearma o aviso
+                    }
+                })
+                .catch(function () {
+                    // O SERVIDOR NAO RESPONDEU: perguntar mais nao ajuda, atrapalha.
+                    pollIntervalo = Math.min(pollIntervalo * 2, POLL_MAXIMO);
+                })
+                .then(agendarProxima, agendarProxima);
+        };
+        consultar();
+    }
+
+    // === Cancelamento ===
+    // CANCELAR NAO PERGUNTA NADA (14/08/2026, pedido do dono).
+    // O modal oferecia "manter" ou "apagar do banco" — e apagar nunca foi o
+    // que ele quis: os km ja encontrados custaram uma visita ao Strava cada um
+    // (regra 4-I: km que some sem rastro e o pior desfecho do sistema).
+    // Cancelar agora so PARA de buscar os proximos; o que ja entrou fica.
+    cancelBtn.addEventListener('click', function() {
+        if (cancelBtn.disabled) return;
+        doCancel(false);
+    });
+
+    document.getElementById('cancelKeepBtn').addEventListener('click', function() {
+        cancelModal.hide();
+        doCancel(false);
+    });
+
+    document.getElementById('cancelDeleteBtn').addEventListener('click', function() {
+        cancelModal.hide();
+        doCancel(true);
+    });
+
+    function doCancel(deleteData) {
+        if (!currentJobId) return;
+        cancelRequested = true;
+        statusMsg.innerText = 'Solicitando cancelamento...';
+        cancelBtn.disabled = true;
+        cancelArea.style.display = 'none';
+        fetch('/upload/cancel/' + currentJobId, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({ delete: deleteData }),
+        })
+        .then(function(r) {
+            return r.json().then(function(data) {
+                return { ok: r.ok, data: data };
+            });
+        })
+        .then(function(res) {
+            if (!res.ok || res.data.status === 'error') {
+                cancelRequested = false;
+                cancelBtn.disabled = false;
+                cancelArea.style.display = 'block';
+                showError(res.data.message || 'Erro ao solicitar cancelamento.');
+                return;
+            }
+            if (res.data.stage === 'cancelled') {
+                showCancelResult(res.data.message);
+            }
+        })
+        .catch(function() {
+            cancelRequested = false;
+            cancelBtn.disabled = false;
+            cancelArea.style.display = 'block';
+            showError('Nao foi possivel solicitar cancelamento agora.');
+        });
+    }
+
+    // === Envio em chunks ===
+    function sendChunk(file, uploadId, chunkIndex, totalChunks, csrfToken) {
+        return new Promise(function(resolve, reject) {
+            var start = chunkIndex * CHUNK_SIZE;
+            var end   = Math.min(start + CHUNK_SIZE, file.size);
+            var blob  = file.slice(start, end);
+
+            var fd = new FormData();
+            fd.append('csrf_token',   csrfToken);
+            fd.append('upload_id',    uploadId);
+            fd.append('chunk_index',  chunkIndex);
+            fd.append('total_chunks', totalChunks);
+            fd.append('chunk',        blob, 'chunk');
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload/chunk');
+            xhr.timeout = 60000;
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        if (data.status === 'ok') { resolve(); return; }
+                        reject(data.message || 'Erro no chunk ' + chunkIndex);
+                    } catch(e) { reject('Resposta invalida'); }
+                } else {
+                    try { reject(JSON.parse(xhr.responseText).message || 'HTTP ' + xhr.status); }
+                    catch(e) { reject('HTTP ' + xhr.status); }
+                }
+            };
+            xhr.onerror   = function() { reject('Erro de rede no chunk ' + chunkIndex); };
+            xhr.ontimeout = function() { reject('Timeout no chunk ' + chunkIndex); };
+            xhr.send(fd);
+        });
+    }
+
+    function assembleChunks(file, uploadId, totalChunks, csrfToken, processCurrentMonth, periodo) {
+        return new Promise(function(resolve, reject) {
+            var fd = new FormData();
+            fd.append('csrf_token',            csrfToken);
+            fd.append('upload_id',             uploadId);
+            fd.append('filename',              file.name);
+            fd.append('total_chunks',          totalChunks);
+            fd.append('process_current_month', processCurrentMonth ? 'y' : '');
+            fd.append('periodo_upload',        periodo.modo);
+            fd.append('periodo_mes',           periodo.mes);
+            fd.append('periodo_ano',           periodo.ano);
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload/assemble');
+            xhr.timeout = 120000;
+            xhr.onload = function() {
+                var ct = xhr.getResponseHeader('Content-Type') || '';
+                if (!ct.includes('application/json')) {
+                    reject('Sessao expirada. Faca login novamente.');
+                    return;
+                }
+                try { resolve(JSON.parse(xhr.responseText)); }
+                catch(e) { reject('Resposta invalida ao montar arquivo'); }
+            };
+            xhr.onerror   = function() { reject('Erro de rede ao montar arquivo'); };
+            xhr.ontimeout = function() { reject('Timeout ao montar arquivo'); };
+            xhr.send(fd);
+        });
+    }
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        serverAlert.style.display = 'none';
+
+        // Pede permissão de notificação AQUI (gesto do usuário garante o
+        // prompt); os avisos de início/fim/travamento dependem disso.
+        if ('Notification' in window && Notification.permission === 'default') {
+            try { Notification.requestPermission().catch(function(){}); } catch(err) {}
+        }
+
+        var fileInput = form.querySelector('input[type="file"]');
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            showError('Selecione um arquivo ZIP ou TXT antes de enviar.');
+            return;
+        }
+
+        var file                = fileInput.files[0];
+        var csrfToken           = getCsrfToken();
+        var processCurrentMonth = form.querySelector('input[name="process_current_month"]').checked;
+        var periodo = {
+            modo: periodoUpload ? periodoUpload.value : 'mes_atual',
+            mes: periodoMes ? periodoMes.value : '',
+            ano: periodoAno ? periodoAno.value : ''
+        };
+        var uploadId            = genUUID();
+        var totalChunks         = Math.ceil(file.size / CHUNK_SIZE);
+
+        currentJobId = null;
+        cancelRequested = false;
+        submitBtn.disabled = true;
+        progressSection.style.display = 'block';
+        resultsSection.style.display  = 'none';
+        cancelArea.style.display      = 'none';
+        stageSpinner.style.display    = '';
+        form.parentNode.querySelectorAll('.alert-danger, .alert-warning').forEach(function(el){ el.remove(); });
+
+        setProgress(2, 'Preparando envio em ' + totalChunks + ' parte(s) de 1 MB...');
+
+        var chunkIndex = 0;
+
+        function sendNext() {
+            if (chunkIndex >= totalChunks) {
+                setProgress(62, 'Confirmando envio e montando arquivo no servidor...');
+                assembleChunks(file, uploadId, totalChunks, csrfToken, processCurrentMonth, periodo)
+                    .then(function(data) {
+                        if (data.status === 'success' && data.job_id) {
+                            currentJobId = data.job_id;
+                            savePendingJob(data.job_id, data.ranking_url);
+                            setProgress(65, 'Arquivo montado! Iniciando processamento...');
+                            startPolling(data.job_id, data.ranking_url);
+                            notifyUpload('MoveMentes: processamento iniciado',
+                                'Arquivo recebido! O processamento continua no servidor ' +
+                                'mesmo se você fechar esta aba ou o navegador.');
+                        } else if (data.status === 'warning') {
+                            progressSection.style.display = 'none';
+                            submitBtn.disabled = false;
+                            var warn = document.createElement('div');
+                            warn.className = 'alert alert-warning mt-3';
+                            warn.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>' + escapeHtml(data.message);
+                            form.after(warn);
+                        } else {
+                            showError(data.message || 'Erro ao montar arquivo.');
+                        }
+                    })
+                    .catch(function(err) { showError(err); });
+                return;
+            }
+
+            var pct = Math.round((chunkIndex / totalChunks) * 60) + 2;
+            var bytesSent = chunkIndex * CHUNK_SIZE;
+            setProgress(pct,
+                'Enviando parte ' + (chunkIndex + 1) + ' de ' + totalChunks +
+                ' (' + formatBytes(bytesSent) + ' de ' + formatBytes(file.size) + ')...');
+
+            sendChunk(file, uploadId, chunkIndex, totalChunks, csrfToken)
+                .then(function() { chunkIndex++; sendNext(); })
+                .catch(function(err) {
+                    console.warn('Chunk ' + chunkIndex + ' falhou, tentando novamente:', err);
+                    sendChunk(file, uploadId, chunkIndex, totalChunks, csrfToken)
+                        .then(function() { chunkIndex++; sendNext(); })
+                        .catch(function(err2) {
+                            showError('Falha ao enviar parte ' + (chunkIndex + 1) + ': ' + err2);
+                        });
+                });
+        }
+
+        sendNext();
+    });
+
+    function resumePendingJob() {
+        var raw = null;
+        try { raw = localStorage.getItem(PENDING_JOB_KEY); } catch(e) {}
+        if (!raw) return;
+        var saved = null;
+        try { saved = JSON.parse(raw); } catch(e) {}
+        if (!saved || !saved.jobId) {
+            clearPendingJob();
+            return;
+        }
+        if (Date.now() - Number(saved.savedAt || 0) > 24 * 60 * 60 * 1000) {
+            clearPendingJob();
+            return;
+        }
+        currentJobId = saved.jobId;
+        cancelRequested = false;
+        submitBtn.disabled = true;
+        progressSection.style.display = 'block';
+        resultsSection.style.display = 'none';
+        cancelArea.style.display = 'none';
+        stageSpinner.style.display = '';
+        setProgress(65, 'Retomando acompanhamento do processamento no servidor...');
+        startPolling(saved.jobId, saved.rankingUrl || '');
+    }
+
+    resumePendingJob();
+
+    // === Deletar histórico ===
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.del-history-btn');
+        if (!btn) return;
+        if (!confirm('Remover este registro do histórico?')) return;
+        var pfId = btn.getAttribute('data-id');
+        var csrf = document.querySelector('input[name="csrf_token"]').value;
+        fetch('/upload/delete_history/' + pfId, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' }
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            if (d.status === 'ok') {
+                var row = btn.closest('tr');
+                if (row) row.remove();
+            } else {
+                alert('Erro: ' + (d.message || 'falha ao deletar'));
+            }
+        }).catch(function() { alert('Erro de rede ao deletar'); });
+    });
+}());
+</script>
+<script src="{{ url_for('static', filename='js/game.js') }}?v=20260605b"></script>
+{% endblock %}

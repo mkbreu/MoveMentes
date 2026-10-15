@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Publicação no grupo — {{ cidade }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row"><div class="col-lg-10 mx-auto">
+
+    <h4 class="mb-1"><i class="fas fa-paper-plane me-2"></i>Publicação no grupo — {{ cidade }}</h4>
+    <p class="text-muted small">
+      Aqui a cidade define <strong>quando</strong> publica, <strong>o que</strong> sai em cada
+      horário e <strong>de qual WhatsApp</strong>. Antes isso estava preso no Agendador do
+      Windows: mudar 10:30 para 11:00 exigia mexer em duas máquinas.
+    </p>
+
+    {% if problemas %}
+    <div class="alert alert-warning">
+      <strong><i class="fas fa-triangle-exclamation me-1"></i>Confira antes de confiar:</strong>
+      <ul class="mb-0 mt-1">
+        {% for p in problemas %}<li>{{ p }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if agora %}
+    <div class="alert alert-info py-2 small">
+      Neste momento vale a rodada das <strong>{{ agora.horario }}</strong>.
+    </div>
+    {% endif %}
+
+    {# ===== HORÁRIOS ===== #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light"><strong>Horários de publicação</strong></div>
+      <div class="card-body">
+        <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="acao" value="salvar_agenda">
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead>
+                <tr>
+                  <th>Horário</th><th>Ativo</th><th>Ranking</th><th>Logos</th>
+                  <th>Parabéns</th><th>Avisos</th><th>Promoções</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for i in itens %}
+                <tr>
+                  <td><input type="time" name="h{{ i.id }}_horario" value="{{ i.horario }}"
+                             class="form-control form-control-sm" style="width:8.5rem;"></td>
+                  <td><input class="form-check-input" type="checkbox" name="h{{ i.id }}_ativo" value="sim" {% if i.ativo %}checked{% endif %}></td>
+                  <td><input class="form-check-input" type="checkbox" name="h{{ i.id }}_ranking" value="sim" {% if i.envia_ranking %}checked{% endif %}></td>
+                  <td><input class="form-check-input" type="checkbox" name="h{{ i.id }}_patro" value="sim" {% if i.envia_patrocinadores %}checked{% endif %}></td>
+                  <td><input class="form-check-input" type="checkbox" name="h{{ i.id }}_parabens" value="sim" {% if i.envia_parabens %}checked{% endif %}></td>
+                  <td><input class="form-check-input" type="checkbox" name="h{{ i.id }}_avisos" value="sim" {% if i.envia_avisos %}checked{% endif %}></td>
+                  <td><input class="form-check-input" type="checkbox" name="h{{ i.id }}_promo" value="sim" {% if i.envia_promocoes %}checked{% endif %}></td>
+                  <td></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="form-text mb-2">
+            A <strong>promoção do patrocinador</strong> sai uma vez por dia, no fim de tudo —
+            depois dos parabéns. Por isso a caixa é separada e só um horário deve marcá-la.
+          </div>
+          <button class="btn btn-primary btn-sm"><i class="fas fa-save me-1"></i>Salvar horários</button>
+        </form>
+
+        <hr>
+        <div class="d-flex gap-3 flex-wrap align-items-end">
+          <form method="POST" class="d-flex gap-2 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="acao" value="novo_horario">
+            <div>
+              <label class="form-label small mb-1">Novo horário</label>
+              <input type="time" name="horario" class="form-control form-control-sm" required style="width:8.5rem;">
+            </div>
+            <button class="btn btn-outline-primary btn-sm"><i class="fas fa-plus me-1"></i>Adicionar</button>
+          </form>
+          {% for i in itens %}
+          <form method="POST" onsubmit="return confirm('Remover o horário {{ i.horario }}?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="acao" value="apagar_horario">
+            <input type="hidden" name="id" value="{{ i.id }}">
+            <button class="btn btn-outline-danger btn-sm">
+              <i class="fas fa-trash me-1"></i>{{ i.horario }}
+            </button>
+          </form>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {# ===== QUEM PUBLICA ===== #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light"><strong>De qual WhatsApp sai</strong></div>
+      <div class="card-body">
+        <p class="small text-muted">
+          Cada admin tem o próprio WhatsApp ligado ao sistema. Marque quem publica e em que
+          <strong>ordem</strong>: <code>1</code> é o principal, <code>2</code> é o suplente.
+          <strong>Sai um só</strong> — se dois publicassem, o grupo receberia tudo em dobro.
+          Se ninguém estiver de pé, o sistema usa o WhatsApp do master supremo, que está no
+          grupo de todas as cidades.
+        </p>
+        <form method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="acao" value="salvar_envio">
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead>
+                <tr><th>Pessoa</th><th>Telefone</th><th>Envia ranking</th>
+                    <th>Envia avisos e logos</th><th style="width:7rem;">Ordem</th></tr>
+              </thead>
+              <tbody>
+                {% for u in usuarios %}
+                <tr>
+                  <td>{{ u.nome }} <span class="badge bg-secondary">{{ u.rotulo_tipo }}</span>
+                      {% if not u.ativo %}<span class="badge bg-danger">inativo</span>{% endif %}</td>
+                  <td class="small">
+                    {% if u.telefone %}{{ u.telefone }}
+                    {% else %}<span class="badge bg-warning text-dark">sem telefone</span>{% endif %}
+                  </td>
+                  <td><input class="form-check-input" type="checkbox" name="u{{ u.id }}_ranking" value="sim" {% if u.envia_ranking %}checked{% endif %}></td>
+                  <td><input class="form-check-input" type="checkbox" name="u{{ u.id }}_avisos" value="sim" {% if u.envia_avisos %}checked{% endif %}></td>
+                  <td><input type="number" name="u{{ u.id }}_ordem" min="0" max="9"
+                             value="{{ u.ordem_envio or 0 }}" class="form-control form-control-sm"></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <button class="btn btn-primary btn-sm"><i class="fas fa-save me-1"></i>Salvar quem publica</button>
+        </form>
+      </div>
+    </div>
+
+    {# ===== ORDEM RESULTANTE ===== #}
+    <div class="row g-3">
+      {% for titulo, lista in [('Ranking', candidatos_ranking), ('Avisos, logos e promoções', candidatos_avisos)] %}
+      <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-header py-2"><strong>{{ titulo }} — ordem de tentativa</strong></div>
+          <div class="card-body">
+            {% if not lista %}
+            <p class="small text-muted mb-0">Ninguém configurado.</p>
+            {% else %}
+            <ol class="small mb-0">
+              {% for c in lista %}
+              <li>
+                <strong>{{ c.nome }}</strong>
+                <span class="badge {% if c.papel == 'principal' %}bg-success{% elif c.papel == 'suplente' %}bg-info text-dark{% elif c.papel == 'socorro' %}bg-dark{% else %}bg-secondary{% endif %}">{{ c.papel }}</span>
+                <div class="text-muted">sessão <code>{{ c.sessao }}</code>
+                  {% if c.telefone %}· {{ c.telefone }}{% else %}· <span class="text-danger">sem telefone</span>{% endif %}
+                </div>
+              </li>
+              {% endfor %}
+            </ol>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+  </div></div>
+</div>
+{% endblock %}

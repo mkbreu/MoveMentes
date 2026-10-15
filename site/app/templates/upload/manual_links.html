@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Links Avulsos do Strava - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fab fa-strava"></i> Processar Links Avulsos do Strava
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    Cole um ou mais links de atividades do Strava. O sistema verifica duplicidade, busca os dados públicos, roda o anti-cheat e salva no ranking da cidade <strong>{{ cidade }}</strong>.
+                </div>
+
+                {% if error_message %}
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>{{ error_message }}
+                </div>
+                {% endif %}
+
+                <form method="POST" id="manualLinksForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div id="linksContainer">
+                        {% for value in raw_links %}
+                        <div class="input-group mb-2 manual-link-row">
+                            <span class="input-group-text"><i class="fab fa-strava"></i></span>
+                            <input type="url" name="links" class="form-control"
+                                   placeholder="https://www.strava.com/activities/..."
+                                   value="{{ value }}">
+                            <button type="button" class="btn btn-outline-danger remove-link-row" title="Remover link">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <button type="button" class="btn btn-outline-secondary btn-sm mb-3" id="addLinkButton">
+                        <i class="fas fa-plus"></i> Adicionar outro link
+                    </button>
+
+                    <div class="mb-3">
+                        <label for="periodoUpload" class="form-label">Período das atividades</label>
+                        <select class="form-select" id="periodoUpload" name="periodo_upload">
+                            <option value="mes_atual" {% if only_current_month %}selected{% endif %}>Somente mês atual</option>
+                            <option value="mes_atual_anterior">Mês atual e mês anterior</option>
+                            <option value="periodo_especifico">Escolher mês e ano</option>
+                            <option value="todos_periodos" {% if not only_current_month %}selected{% endif %}>Todos os períodos</option>
+                        </select>
+                        <small class="text-muted">O sistema salva cada atividade no ranking do mês em que ela foi realizada.</small>
+                    </div>
+                    <div class="row g-2 mb-3" id="periodoEspecificoCampos" style="display:none;">
+                        <div class="col-md-6">
+                            <label for="periodoMes" class="form-label">Mês</label>
+                            <select id="periodoMes" name="periodo_mes" class="form-select">
+                                <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+                                <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+                                <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+                                <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="periodoAno" class="form-label">Ano</label>
+                            <input id="periodoAno" type="number" name="periodo_ano" class="form-control" min="2000" max="2100">
+                        </div>
+                    </div>
+                    <div class="form-check mb-3 d-none">
+                        <input class="form-check-input" type="checkbox" id="processCurrentMonth"
+                               name="process_current_month" value="y" {% if only_current_month %}checked{% endif %}>
+                        <label class="form-check-label" for="processCurrentMonth">
+                            Processar apenas atividades do mês atual
+                        </label>
+                    </div>
+
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-cogs"></i> Processar links
+                        </button>
+                        <a href="{{ url_for('upload.index') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-upload"></i> Voltar ao Upload
+                        </a>
+                        <a href="{{ url_for('ranking.current') }}" class="btn btn-success">
+                            <i class="fas fa-trophy"></i> Ver Ranking
+                        </a>
+                    </div>
+                </form>
+
+                {% if results %}
+                {% set salvos = results | selectattr('status', 'equalto', 'salvo') | list | length %}
+                <div class="mt-4">
+                    <div class="alert {{ 'alert-success' if salvos else 'alert-warning' }}">
+                        <i class="fas fa-check-circle me-2"></i>
+                        Links processados: <strong>{{ salvos }}</strong> atividade(s) salva(s)
+                        de <strong>{{ results|length }}</strong> link(s) enviado(s).
+                    </div>
+                    <h5>Resultado do processamento</h5>
+                    <div class="list-group">
+                        {% for item in results %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div>
+                                    <div class="small text-muted text-break">{{ item.url }}</div>
+                                    <div>{{ item.message }}</div>
+                                    {% if item.flags_count %}
+                                    <div class="small text-warning">
+                                        <i class="fas fa-flag"></i> {{ item.flags_count }} flag(s) de anti-cheat gerada(s)
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% if item.status == 'salvo' %}
+                                <span class="badge bg-success">salvo</span>
+                                {% elif item.status == 'duplicado' %}
+                                <span class="badge bg-secondary">duplicado</span>
+                                {% elif item.status == 'ignorado' %}
+                                <span class="badge bg-warning text-dark">ignorado</span>
+                                {% else %}
+                                <span class="badge bg-danger">erro</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    const container = document.getElementById('linksContainer');
+    const addButton = document.getElementById('addLinkButton');
+    const periodoUpload = document.getElementById('periodoUpload');
+    const periodoCampos = document.getElementById('periodoEspecificoCampos');
+    const periodoMes = document.getElementById('periodoMes');
+    const periodoAno = document.getElementById('periodoAno');
+
+    if (periodoMes && periodoAno) {
+        const hoje = new Date();
+        periodoMes.value = String(hoje.getMonth() + 1);
+        periodoAno.value = String(hoje.getFullYear());
+    }
+    function atualizarCamposPeriodo() {
+        periodoCampos.style.display = periodoUpload.value === 'periodo_especifico' ? '' : 'none';
+    }
+    periodoUpload.addEventListener('change', atualizarCamposPeriodo);
+    atualizarCamposPeriodo();
+
+    function createRow(value) {
+        const row = document.createElement('div');
+        row.className = 'input-group mb-2 manual-link-row';
+        row.innerHTML = `
+            <span class="input-group-text"><i class="fab fa-strava"></i></span>
+            <input type="url" name="links" class="form-control" placeholder="https://www.strava.com/activities/..." value="">
+            <button type="button" class="btn btn-outline-danger remove-link-row" title="Remover link">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        row.querySelector('input').value = value || '';
+        return row;
+    }
+
+    addButton.addEventListener('click', function () {
+        const row = createRow('');
+        container.appendChild(row);
+        row.querySelector('input').focus();
+    });
+
+    container.addEventListener('click', function (event) {
+        const button = event.target.closest('.remove-link-row');
+        if (!button) {
+            return;
+        }
+        const rows = container.querySelectorAll('.manual-link-row');
+        if (rows.length === 1) {
+            rows[0].querySelector('input').value = '';
+            return;
+        }
+        button.closest('.manual-link-row').remove();
+    });
+}());
+</script>
+{% endblock %}

@@ -1,0 +1,506 @@
+{% extends "base.html" %}
+{% block title %}Patrocinadores — {{ meses[month] }}/{{ year }}{% endblock %}
+
+{% macro campos_patrocinador(sp=None, prefixo='', permite_principal=True) %}
+  <div class="row g-2">
+    <div class="col-md-6">
+      <label class="form-label small">Nome interno (como a equipe identifica) *</label>
+      <input type="text" name="sponsor_name" class="form-control form-control-sm"
+             value="{{ sp.patrocinador_nome if sp else '' }}" required
+             placeholder="Ex.: Relojoaria 3R — matriz">
+      <div class="form-text">Só a equipe vê. Serve para diferenciar dois patrocinadores de nome parecido.</div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label small">Nome que aparece no ranking</label>
+      <input type="text" name="nome_exibicao" class="form-control form-control-sm"
+             {# `sp.nome_exibicao if sp` renderiza o texto "None" quando o
+                campo esta vazio no banco -- e ai o admin salva a palavra
+                "None" como nome do patrocinador sem perceber. Aconteceu com
+                a ONTURBO em 07/09/2026. `or ''` resolve nos dois casos. #}
+             value="{{ (sp.nome_exibicao if sp else '') or '' }}"
+             placeholder="Deixe vazio para usar o nome interno">
+      <div class="form-text">É este que o público lê. Pode mudar de mês para mês.</div>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small" for="peso_frequencia">Com que frequência aparece</label>
+      <select name="peso_frequencia" id="peso_frequencia" class="form-select form-select-sm">
+        {% set _p = (sp.peso_frequencia if sp and sp.peso_frequencia is not none else 3) %}
+        <option value="5" {% if _p == 5 %}selected{% endif %}>Sempre que puder (14x por semana)</option>
+        <option value="4" {% if _p == 4 %}selected{% endif %}>Bastante (10x por semana)</option>
+        <option value="3" {% if _p == 3 %}selected{% endif %}>Normal — padrão (7x por semana)</option>
+        <option value="2" {% if _p == 2 %}selected{% endif %}>Pouco (5x por semana)</option>
+        <option value="1" {% if _p == 1 %}selected{% endif %}>Raramente (3x por semana)</option>
+        <option value="0" {% if _p == 0 %}selected{% endif %}>Não aparecer por ora</option>
+      </select>
+      <div class="form-text">
+        Sai <strong>um apoio por ranking</strong> (o ranking sai 2x por dia, 7 dias
+        por semana — 14 vagas). Quem tem frequência maior ocupa mais vagas dessas
+        14, espalhadas pela semana em vez de todas juntas. O
+        <strong>Patrocinador do mês</strong> concorre pela mesma vaga com um peso
+        maior, então costuma ocupar a maior parte do que sobrar.
+      </div>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small">Papel neste mês</label>
+      <select name="categoria" class="form-select form-select-sm">
+        <option value="adicional" {% if not sp or sp.categoria != 'principal' %}selected{% endif %}>Apoio</option>
+        {% if permite_principal or (sp and sp.categoria == 'principal') %}
+        <option value="principal" {% if sp and sp.categoria == 'principal' %}selected{% endif %}>Patrocinador do mês</option>
+        {% endif %}
+      </select>
+      {% if not permite_principal %}
+      <div class="form-text">
+        Este mês já tem Patrocinador do Mês. Para trocar, use o botão
+        <strong>Editar</strong> no card dele acima.
+      </div>
+      {% endif %}
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small">Telefone / contato</label>
+      <input type="text" name="telefone" class="form-control form-control-sm"
+             value="{{ sp.telefone or '' if sp else '' }}" placeholder="(00) 00000-0000">
+      <div class="form-text">Entra na legenda que vai ao grupo, para o pessoal falar com o comércio.</div>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small">{% if sp %}Trocar logo (opcional){% else %}Logo{% endif %}</label>
+      <input type="file" name="sponsor_logo" class="form-control form-control-sm" accept="image/*">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label small">Bordão / slogan</label>
+      <input type="text" name="bordao" class="form-control form-control-sm" maxlength="200"
+             value="{{ sp.bordao or '' if sp else '' }}">
+    </div>
+    {# ENDERECO E MAPA MORAM AQUI, na ficha do patrocinador — nao na tela do
+       mes. O balcao e dele e nao muda; repetir todo mes seria trabalho a toa e
+       uma chance a mais de digitar diferente. A cobranca de medalha usa isto
+       quando o mes nao tem um local proprio cadastrado. #}
+    <div class="col-md-6">
+      <label class="form-label small">Endereço (onde a medalha é retirada)</label>
+      <input type="text" name="endereco" class="form-control form-control-sm" maxlength="300"
+             value="{{ sp.endereco or '' if sp else '' }}"
+             placeholder="Ex.: Av. Central, 120 — Centro">
+      <div class="form-text">Fica na ficha deste patrocinador e vale para todo mês em que ele bancar.</div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label small">Link de localização (Google Maps)</label>
+      <input type="text" name="maps_url" class="form-control form-control-sm" maxlength="500"
+             value="{{ sp.maps_url or '' if sp else '' }}"
+             placeholder="https://maps.app.goo.gl/...">
+      <div class="form-text">Vai na linha "Localização:" da mensagem. Em branco, a linha some.</div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label small">O que este patrocinador banca neste mês</label>
+      <input type="text" name="o_que_banca" class="form-control form-control-sm" maxlength="200"
+             value="{{ sp.o_que_banca or '' if sp else '' }}"
+             placeholder="Ex.: Te premiará com as medalhas">
+      <div class="form-text">
+        Vai depois do travessão na abertura do mês:
+        <em>Patrocinador do mês: <strong>Nome</strong> — o que você escrever aqui</em>.
+      </div>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label small">Legenda (texto livre)</label>
+      <textarea name="legenda" class="form-control form-control-sm" rows="2"
+                placeholder="Ex.: endereço, horário, promoção do mês...">{{ sp.legenda or '' if sp else '' }}</textarea>
+    </div>
+    <div class="col-md-6 d-flex flex-column justify-content-end">
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" name="banca_medalhas" value="sim"
+               id="med{{ prefixo }}" {% if sp and sp.banca_medalhas %}checked{% endif %}>
+        <label class="form-check-label small" for="med{{ prefixo }}">
+          É quem paga as <strong>medalhas</strong>
+        </label>
+      </div>
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" name="patrocinio_continuo" value="sim"
+               id="cont{{ prefixo }}" {% if sp and sp.patrocinio_continuo %}checked{% endif %}>
+        <label class="form-check-label small" for="cont{{ prefixo }}">
+          <strong>Patrocínio contínuo</strong> — banca todo mês
+        </label>
+        <div class="form-text">
+          Muda o fim do agradecimento: quem volta todo mês recebe
+          <em>“até o mês que vem”</em> no lugar de
+          <em>“contamos com o seu patrocínio no ano que vem”</em>.
+        </div>
+      </div>
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" name="salvar_catalogo" value="sim"
+               id="cat{{ prefixo }}" {% if not sp %}checked{% endif %}>
+        <label class="form-check-label small" for="cat{{ prefixo }}">
+          Guardar no catálogo, para reaproveitar em outros meses
+        </label>
+      </div>
+    </div>
+  </div>
+{% endmacro %}
+
+{# Bloco padrao de legenda: e exatamente o texto que a automacao envia junto
+   com a logo. Aparece igual para o principal e para os apoios — antes so o
+   apoio tinha, e o admin nao conseguia conferir o do principal. #}
+{% macro bloco_legenda(texto) %}
+  <label class="form-label small fw-bold mb-1">
+    Legenda completa <span class="text-muted fw-normal">— é isto que vai ao grupo com a logo</span>
+  </label>
+  <div class="input-group input-group-sm mb-2">
+    <textarea class="form-control legenda-completa" rows="4" readonly>{{ texto }}</textarea>
+    <button type="button" class="btn btn-outline-primary copy-legenda">
+      <i class="fas fa-copy me-1"></i>Copiar
+    </button>
+  </div>
+{% endmacro %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-10 mx-auto">
+
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <h4 class="mb-0"><i class="fas fa-handshake me-2"></i>Patrocinadores</h4>
+      <a href="{{ url_for('ranking.current') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Voltar ao ranking
+      </a>
+    </div>
+
+    {# 1. A regra da página, antes de qualquer coisa #}
+    <div class="alert alert-secondary py-2 small">
+      <strong>{{ cidade }} · {{ meses[month] }}/{{ year }}</strong> —
+      tudo que você mexer nesta tela vale <strong>só para este mês</strong>.
+      Os meses já publicados ficam exatamente como saíram: nome, logo, bordão e legenda
+      de um mês nunca aparecem em outro. O mesmo patrocinador pode voltar em vários meses,
+      cada vez com o seu próprio texto.
+    </div>
+
+    {# 2. Escolher o período + adicionar #}
+    <div class="d-flex gap-2 align-items-end flex-wrap mb-3">
+      <form method="GET" action="{{ url_for('ranking.patrocinadores') }}" class="d-flex gap-2 align-items-end">
+        <div>
+          <label class="form-label small mb-1">Mês</label>
+          <select name="month" class="form-select form-select-sm">
+            {% for m in range(1, 13) %}
+            <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ meses[m] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label small mb-1">Ano</label>
+          <select name="year" class="form-select form-select-sm">
+            {% for a in anos %}
+            <option value="{{ a }}" {% if a == year %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-sm btn-outline-primary">Ver período</button>
+      </form>
+
+      <button type="button" class="btn btn-sm btn-success" id="btn-adicionar">
+        <i class="fas fa-plus me-1"></i>Adicionar patrocinador
+      </button>
+    </div>
+
+    {# 3. Formulário de adicionar — abre aqui mesmo, sem trocar de página #}
+    <div class="card shadow-sm mb-4" id="form-adicionar" style="display:none;">
+      <div class="card-header py-2 bg-success-subtle d-flex justify-content-between align-items-center">
+        <strong><i class="fas fa-plus me-1"></i>Novo patrocinador em {{ meses[month] }}/{{ year }}</strong>
+        <button type="button" class="btn-close" id="fechar-adicionar" aria-label="Fechar"></button>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('ranking.patrocinador_salvar') }}"
+              enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="year" value="{{ year }}">
+          <input type="hidden" name="month" value="{{ month }}">
+          {{ campos_patrocinador(none, 'novo', permite_principal=(principal is none)) }}
+          <div class="mt-3">
+            <button type="submit" class="btn btn-primary btn-sm">
+              <i class="fas fa-save me-1"></i>Adicionar a {{ meses[month] }}/{{ year }}
+            </button>
+            <span class="text-muted small ms-2">
+              Para mudar de mês, troque acima em <em>Ver período</em> — assim ninguém
+              sobrescreve o patrocinador de outro mês sem querer.
+            </span>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {# 4. Patrocinador do mês #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-warning-subtle">
+        <strong><i class="fas fa-star me-1"></i>Patrocinador do mês — {{ meses[month] }}/{{ year }}</strong>
+      </div>
+      <div class="card-body">
+        {% if principal %}
+        <div class="row g-3">
+          <div class="col-md-3 text-center">
+            {% if principal_logo_url %}
+            <img src="{{ principal_logo_url }}" alt="Logo de {{ principal.exibicao }}"
+                 style="max-width:100%; max-height:150px; object-fit:contain;">
+            {% else %}
+            <div class="text-muted small border rounded p-4">sem logo</div>
+            {% endif %}
+          </div>
+          <div class="col-md-9">
+            <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+              <span class="h5 mb-0">{{ principal.exibicao }}</span>
+              <span class="badge bg-warning text-dark">Patrocinador do mês</span>
+              {% if principal.banca_medalhas %}
+              <span class="badge bg-success">paga as medalhas</span>
+              {% endif %}
+              {% if principal.patrocinio_continuo %}
+              <span class="badge bg-info text-dark" title="Banca todo mês — o agradecimento não se despede">contínuo</span>
+              {% endif %}
+            </div>
+            {% if principal.nome_exibicao and principal.nome_exibicao != principal.patrocinador_nome %}
+            <div class="text-muted small mb-1">cadastro interno: {{ principal.patrocinador_nome }}</div>
+            {% endif %}
+            {% if principal.o_que_banca %}<div class="small mb-1">Banca: {{ principal.o_que_banca }}</div>{% endif %}
+            {% if principal.bordao %}<div class="fst-italic small">"{{ principal.bordao }}"</div>{% endif %}
+            {% if principal.telefone %}<div class="small mb-2"><i class="fas fa-phone me-1"></i>{{ principal.telefone|telefone }}</div>{% endif %}
+
+            {{ bloco_legenda(principal_legenda) }}
+
+            <div class="d-flex gap-2 flex-wrap">
+              <details>
+                <summary class="btn btn-outline-secondary btn-sm"><i class="fas fa-pen me-1"></i>Editar</summary>
+                <form method="POST" action="{{ url_for('ranking.patrocinador_salvar') }}"
+                      enctype="multipart/form-data" class="mt-2 border rounded p-2 bg-light">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="sponsor_id" value="{{ principal.id }}">
+                  <input type="hidden" name="year" value="{{ year }}">
+                  <input type="hidden" name="month" value="{{ month }}">
+                  {{ campos_patrocinador(principal, 'p' ~ principal.id) }}
+                  <div class="mt-2">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                      <i class="fas fa-save me-1"></i>Salvar só em {{ meses[month] }}/{{ year }}
+                    </button>
+                  </div>
+                </form>
+              </details>
+              {% if principal_logo_url %}
+              <form method="POST" action="{{ url_for('ranking.remove_sponsor_logo') }}"
+                    onsubmit="return confirm('Remover a logo apenas de {{ meses[month] }}/{{ year }}?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="year" value="{{ year }}">
+                <input type="hidden" name="month" value="{{ month }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-image me-1"></i>Remover logo</button>
+              </form>
+              {% endif %}
+              <form method="POST" action="{{ url_for('ranking.remove_monthly_sponsor', sponsor_id=principal.id) }}"
+                    onsubmit="return confirm('Tirar este patrocinador de {{ meses[month] }}/{{ year }}? Os outros meses não são tocados.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash me-1"></i>Remover do mês</button>
+              </form>
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <div class="alert alert-warning mb-0 py-2 small">
+          <i class="fas fa-triangle-exclamation me-1"></i>
+          <strong>{{ meses[month] }}/{{ year }} está sem Patrocinador do Mês.</strong>
+          O ranking deste período vai sair com "A definir" — e não com o patrocinador de outro mês.
+          Use <strong>Adicionar patrocinador</strong> acima, ou traga um do catálogo lá embaixo.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# 5. Apoios — logo abaixo do principal #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light">
+        <strong><i class="fas fa-hand-holding-heart me-1"></i>Apoio — {{ meses[month] }}/{{ year }}</strong>
+        {% if itens %}<span class="badge bg-secondary">{{ itens|length }}</span>{% endif %}
+      </div>
+      <div class="card-body">
+        {% if not itens %}
+        <p class="text-muted small mb-0">
+          Nenhum apoio cadastrado para {{ meses[month] }}/{{ year }}.
+        </p>
+        {% endif %}
+
+        {% for item in itens %}
+        {% set sp = item.sp %}
+        <div class="row g-3 {% if not loop.last %}border-bottom pb-3 mb-3{% endif %}">
+          <div class="col-md-3 text-center">
+            {% if item.logo_url %}
+            <img src="{{ item.logo_url }}" alt="Logo de {{ sp.exibicao }}"
+                 style="max-width:100%; max-height:120px; object-fit:contain;">
+            {% else %}
+            <div class="text-muted small border rounded p-4">sem logo</div>
+            {% endif %}
+          </div>
+          <div class="col-md-9">
+            <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+              <strong>{{ sp.exibicao }}</strong>
+              <span class="badge bg-secondary">Apoio</span>
+              {% if sp.banca_medalhas %}<span class="badge bg-success">paga as medalhas</span>{% endif %}
+              {% if sp.patrocinio_continuo %}<span class="badge bg-info text-dark" title="Banca todo mês">contínuo</span>{% endif %}
+              {% if sp.nome_exibicao and sp.nome_exibicao != sp.patrocinador_nome %}
+              <span class="text-muted small">interno: {{ sp.patrocinador_nome }}</span>
+              {% endif %}
+            </div>
+            {% if sp.o_que_banca %}<div class="small mb-1">Banca: {{ sp.o_que_banca }}</div>{% endif %}
+            {% if sp.bordao %}<div class="fst-italic small">"{{ sp.bordao }}"</div>{% endif %}
+            {% if sp.telefone %}<div class="small mb-2"><i class="fas fa-phone me-1"></i>{{ sp.telefone|telefone }}</div>{% endif %}
+
+            {{ bloco_legenda(item.legenda_completa) }}
+
+            <div class="d-flex gap-2 flex-wrap">
+              <details>
+                <summary class="btn btn-outline-secondary btn-sm">
+                  <i class="fas fa-pen me-1"></i>Editar
+                </summary>
+                <form method="POST" action="{{ url_for('ranking.patrocinador_salvar') }}"
+                      enctype="multipart/form-data" class="mt-2 border rounded p-2 bg-light">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="sponsor_id" value="{{ sp.id }}">
+                  <input type="hidden" name="year" value="{{ year }}">
+                  <input type="hidden" name="month" value="{{ month }}">
+                  {{ campos_patrocinador(sp, 'a' ~ sp.id, permite_principal=(principal is none)) }}
+                  <div class="mt-2">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                      <i class="fas fa-save me-1"></i>Salvar só em {{ meses[month] }}/{{ year }}
+                    </button>
+                  </div>
+                </form>
+              </details>
+
+              <form method="POST" action="{{ url_for('ranking.remove_monthly_sponsor', sponsor_id=sp.id) }}"
+                    onsubmit="return confirm('Tirar {{ sp.exibicao }} de {{ meses[month] }}/{{ year }}? Os outros meses não são tocados.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                  <i class="fas fa-trash me-1"></i>Remover do mês
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# 6. Catálogo — no fim, é ferramenta de atalho, não o assunto da página #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header py-2 bg-light">
+        <strong><i class="fas fa-book me-1"></i>Catálogo de {{ cidade }}</strong>
+        <span class="text-muted small">— traga alguém que já apoiou antes, sem redigitar</span>
+      </div>
+      <div class="card-body">
+        {% if catalogo %}
+        <div class="row g-2">
+          {% for f in catalogo %}
+          <div class="col-md-6">
+            <div class="border rounded p-2 h-100 d-flex gap-2 align-items-center">
+              {% if f.patrocinador_logo_blob %}
+              <img src="{{ url_for('ranking.catalogo_logo', ficha_id=f.id) }}" alt=""
+                   style="width:52px; height:52px; object-fit:contain;">
+              {% endif %}
+              <div class="flex-grow-1">
+                <div class="small fw-bold">{{ f.exibicao }}</div>
+                {% if f.nome_exibicao and f.nome_exibicao != f.nome_interno %}
+                <div class="text-muted" style="font-size:.75rem;">interno: {{ f.nome_interno }}</div>
+                {% endif %}
+                {% if f.bordao %}<div class="text-muted fst-italic" style="font-size:.75rem;">"{{ f.bordao }}"</div>{% endif %}
+              </div>
+              <form method="POST" action="{{ url_for('ranking.patrocinador_do_catalogo') }}" class="d-flex gap-1">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="catalogo_id" value="{{ f.id }}">
+                <input type="hidden" name="year" value="{{ year }}">
+                <input type="hidden" name="month" value="{{ month }}">
+                <select name="categoria" class="form-select form-select-sm" style="width:auto;">
+                  <option value="adicional">Apoio</option>
+                  {% if principal is none %}<option value="principal">Do mês</option>{% endif %}
+                </select>
+                <button type="submit" class="btn btn-sm btn-outline-success" title="Trazer para este mês">
+                  <i class="fas fa-plus"></i>
+                </button>
+              </form>
+              <form method="POST" action="{{ url_for('ranking.catalogo_remover', ficha_id=f.id) }}"
+                    onsubmit="return confirm('Tirar {{ f.nome_interno }} do catálogo? Os meses em que ele já aparece continuam iguais.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Tirar do catálogo">
+                  <i class="fas fa-xmark"></i>
+                </button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted small mb-0">
+          O catálogo ainda está vazio. Ao cadastrar um patrocinador, marque
+          "Guardar no catálogo" — nos próximos meses ele aparece aqui com um clique.
+        </p>
+        {% endif %}
+
+        {% if periodos|length > 1 %}
+        <hr>
+        <form method="POST" action="{{ url_for('ranking.patrocinadores_copiar_mes') }}"
+              class="row g-2 align-items-end">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="year" value="{{ year }}">
+          <input type="hidden" name="month" value="{{ month }}">
+          <div class="col-auto">
+            <label class="form-label small mb-1">Copiar todos os patrocinadores de outro mês</label>
+            <select name="origem" class="form-select form-select-sm">
+              {% for a, m, qtd in periodos %}
+              {% if not (a == year and m == month) %}
+              <option value="{{ a }}-{{ m }}">{{ meses[m] }}/{{ a }} ({{ qtd }})</option>
+              {% endif %}
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-sm btn-outline-primary">
+              <i class="fas fa-copy me-1"></i>Copiar para {{ meses[month] }}/{{ year }}
+            </button>
+          </div>
+          <div class="col-12">
+            <div class="form-text">
+              Copia, não vincula: depois disso os dois meses seguem independentes.
+              Quem já estiver neste mês é ignorado.
+            </div>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Abre o formulário de adicionar na própria página, logo abaixo do botão.
+(function () {
+  var botao = document.getElementById('btn-adicionar');
+  var caixa = document.getElementById('form-adicionar');
+  var fechar = document.getElementById('fechar-adicionar');
+  if (!botao || !caixa) return;
+  botao.addEventListener('click', function () {
+    var abrindo = caixa.style.display === 'none';
+    caixa.style.display = abrindo ? 'block' : 'none';
+    botao.innerHTML = abrindo
+      ? '<i class="fas fa-xmark me-1"></i>Fechar'
+      : '<i class="fas fa-plus me-1"></i>Adicionar patrocinador';
+    if (abrindo) caixa.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+  if (fechar) fechar.addEventListener('click', function () { botao.click(); });
+})();
+
+document.querySelectorAll('.copy-legenda').forEach(function (button) {
+  button.addEventListener('click', function () {
+    var area = button.closest('.input-group').querySelector('.legenda-completa');
+    if (!area) return;
+    var texto = area.value || '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(function () {
+        button.innerHTML = '<i class="fas fa-check me-1"></i>Copiado';
+      }).catch(function () { area.select(); document.execCommand('copy'); });
+    } else {
+      area.select();
+      document.execCommand('copy');
+    }
+  });
+});
+</script>
+{% endblock %}

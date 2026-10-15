@@ -1,0 +1,11 @@
+{% extends "conferencia/base_conferencia.html" %}
+{% block titulo %}Escolha a cidade{% endblock %}
+{% block cabecalho %}Escolha a sua cidade{% endblock %}
+{% block conteudo %}
+{% for c in cidades %}
+<a href="{{ url_for('conferencia.pagina', city_slug=c.slug) }}"
+   class="btn btn-success btn-conferir w-100 mb-3">
+  <i class="fas fa-city me-2"></i>{{ c.nome }}
+</a>
+{% endfor %}
+{% endblock %}

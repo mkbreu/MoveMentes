@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Adicionar Cidade - MoveMentes{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center py-4">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-plus-circle"></i> Adicionar Nova Cidade</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('admin.add_city') }}">
+                    <div class="mb-3">
+                        <label for="city_name" class="form-label">Nome da Cidade</label>
+                        <input type="text" id="city_name" name="city_name" class="form-control" placeholder="Ex: Palmeirópolis" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Fundação do grupo no WhatsApp (opcional)</label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <input type="number" name="piso_importacao_mes" class="form-control" placeholder="Mês" min="1" max="12">
+                            </div>
+                            <div class="col-6">
+                                <input type="number" name="piso_importacao_ano" class="form-control" placeholder="Ano" min="2000" max="2100">
+                            </div>
+                        </div>
+                        <div class="form-text">Desde quando o grupo desta cidade existe. Deixe em branco se não souber — dá para preencher depois em Editar. Usado como piso para trazer histórico de atleta.</div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Salvar Cidade
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
